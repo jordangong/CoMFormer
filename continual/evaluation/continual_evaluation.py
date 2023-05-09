@@ -2,17 +2,16 @@
 import itertools
 import json
 import logging
-import numpy as np
 import os
 from collections import OrderedDict
-import PIL.Image as Image
+
+import numpy as np
 import pycocotools.mask as mask_util
 import torch
-
 from detectron2.data import DatasetCatalog, MetadataCatalog
+from detectron2.evaluation.evaluator import DatasetEvaluator
 from detectron2.utils.comm import all_gather, is_main_process, synchronize
 from detectron2.utils.file_io import PathManager
-from detectron2.evaluation.evaluator import DatasetEvaluator
 
 
 class ContinualSemSegEvaluator(DatasetEvaluator):
@@ -21,11 +20,11 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
     """
 
     def __init__(
-        self,
-        cfg,
-        dataset_name,
-        distributed=True,
-        output_dir=None,
+            self,
+            cfg,
+            dataset_name,
+            distributed=True,
+            output_dir=None,
     ):
         """
         Args:
@@ -63,7 +62,7 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
         self.base_classes = 1 + cfg.CONT.BASE_CLS
         self.novel_classes = cfg.CONT.INC_CLS * cfg.CONT.TASK
 
-        self.old_classes = self.base_classes + (cfg.CONT.TASK-1) * cfg.CONT.INC_CLS \
+        self.old_classes = self.base_classes + (cfg.CONT.TASK - 1) * cfg.CONT.INC_CLS \
             if cfg.CONT.TASK > 0 else 1 + cfg.CONT.BASE_CLS
         self.new_classes = cfg.CONT.INC_CLS if cfg.CONT.TASK > 0 else self.base_classes
         # Background is always present in evaluation, so add +1
@@ -73,7 +72,7 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
 
         # assume class names has background and it's the first
         self._class_names = ['background']
-        self._class_names += [meta.stuff_classes[x] for x in self._order[:self._num_classes-1]]  # sort class names
+        self._class_names += [meta.stuff_classes[x] for x in self._order[:self._num_classes - 1]]  # sort class names
         self._ignore_label = meta.ignore_label
 
     def reset(self):
@@ -91,7 +90,6 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
                 segmentation prediction in the same format.
         """
         for input, output in zip(inputs, outputs):
-
             output = output["sem_seg"].argmax(dim=0).to(self._cpu_device)
             pred = np.array(output, dtype=np.int)
             # with PathManager.open(self.input_file_to_gt_file[input["file_name"]], "rb") as f:
@@ -152,12 +150,13 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
         fiou = np.sum(iou[acc_valid] * class_weights[acc_valid])
         pacc = np.sum(tp) / np.sum(pos_gt)
 
-        miou_base = np.sum(iou[1:self.base_classes]) / (self.base_classes-1)
-        miou_old = np.sum(iou[1:self.old_classes]) / (self.old_classes-1)
+        miou_base = np.sum(iou[1:self.base_classes]) / (self.base_classes - 1)
+        miou_old = np.sum(iou[1:self.old_classes]) / (self.old_classes - 1)
         miou_new = np.sum(iou[self.old_classes:]) / self.new_classes
         miou_novel = np.sum(iou[self.base_classes:]) / self.novel_classes if self.novel_classes > 0 else 0.
 
-        fg_iou = (np.sum(self._conf_matrix[1:-1, 1:-1]) + self._conf_matrix[0, 0]) / np.sum(self._conf_matrix[:-1, :-1])
+        fg_iou = (np.sum(self._conf_matrix[1:-1, 1:-1]) + self._conf_matrix[0, 0]) / np.sum(
+            self._conf_matrix[:-1, :-1])
 
         res = {}
         cls_iou = []
@@ -202,7 +201,7 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
         fig = torch.from_numpy(fig)
         fig = fig.repeat(3, 1, 1)
         fig[1] = 0.25
-        fig[2] = 1-fig[2]
+        fig[2] = 1 - fig[2]
 
         return fig
 
@@ -223,7 +222,7 @@ class ContinualSemSegEvaluator(DatasetEvaluator):
         for label in np.unique(sem_seg):
             if self._contiguous_id_to_dataset_id is not None:
                 assert (
-                    label in self._contiguous_id_to_dataset_id
+                        label in self._contiguous_id_to_dataset_id
                 ), "Label {} is not in the metadata info for {}".format(label, self._dataset_name)
                 dataset_id = self._contiguous_id_to_dataset_id[label]
             else:

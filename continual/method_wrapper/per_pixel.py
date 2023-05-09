@@ -1,12 +1,13 @@
-from .base import BaseDistillation
 import torch
 import torch.nn as nn
-from torch.nn import functional as F
-from mask2former.maskformer_model import MaskFormer
-from .pix_losses import UnbiasedKnowledgeDistillationLoss, UnbiasedCrossEntropy, KnowledgeDistillationLoss, normalization
 from detectron2.data import MetadataCatalog
+from torch.nn import functional as F
 
 from continual.modeling.pod import func_pod_loss
+from mask2former.maskformer_model import MaskFormer
+from .base import BaseDistillation
+from .pix_losses import UnbiasedKnowledgeDistillationLoss, UnbiasedCrossEntropy, KnowledgeDistillationLoss
+
 
 def pod_loss(output, output_old):
     # fixme actually pod is computed BEFORE ReLU. Due to Detectron, it is hard to move after...
@@ -14,7 +15,8 @@ def pod_loss(output, output_old):
     input_feat = [input_feat[key] for key in ['res2', 'res3', 'res4', 'res5']] + [output['outputs']['features']]
 
     old_feat = output_old['features']
-    old_feat = [old_feat[key].detach() for key in ['res2', 'res3', 'res4', 'res5']] + [output_old['outputs']['features']]
+    old_feat = [old_feat[key].detach() for key in ['res2', 'res3', 'res4', 'res5']] + [
+        output_old['outputs']['features']]
 
     loss = {"loss_pod": func_pod_loss(input_feat, old_feat, scales=[1, 2, 4])}
     return loss
@@ -37,7 +39,8 @@ class PerPixelDistillation(BaseDistillation):
                 if cfg.CONT.DIST.UKD:
                     self.kd_loss = UnbiasedKnowledgeDistillationLoss(reduction='mean', alpha=cfg.CONT.DIST.ALPHA)
                 else:
-                    self.kd_loss = KnowledgeDistillationLoss(reduction="mean", alpha=cfg.CONT.DIST.ALPHA, use_new=cfg.CONT.DIST.USE_NEW)
+                    self.kd_loss = KnowledgeDistillationLoss(reduction="mean", alpha=cfg.CONT.DIST.ALPHA,
+                                                             use_new=cfg.CONT.DIST.USE_NEW)
                 self.kd_weight = cfg.CONT.DIST.KD_WEIGHT
 
         self.kd_deep = cfg.CONT.DIST.KD_DEEP
@@ -76,11 +79,13 @@ class PerPixelDistillation(BaseDistillation):
         targets = torch.cat(targets, dim=0)
         # downsample targets to reduce GPU memory consumption - performance are close.
         # This may introduce issues when having more than 255 classes. In that case, convert to float.
-        targets = F.interpolate(targets.unsqueeze(0).byte(), size=outputs['pred_masks'].shape[-2:], mode="nearest")[0].long()
+        targets = F.interpolate(targets.unsqueeze(0).byte(), size=outputs['pred_masks'].shape[-2:], mode="nearest")[
+            0].long()
 
         if self.pseudo and self.use_model_old:
             mask_background = targets == 0
-            pred_old = MaskFormer.prepare_semantic_train(model_out_old['outputs'], targets, mask_bg=self.use_bg)  # BC_oldHW
+            pred_old = MaskFormer.prepare_semantic_train(model_out_old['outputs'], targets,
+                                                         mask_bg=self.use_bg)  # BC_oldHW
             probs_old = torch.softmax(pred_old, dim=1)
             pseudo_labels = probs_old.argmax(dim=1)
             pseudo_labels[probs_old.max(dim=1)[0] < 0.8] = 255

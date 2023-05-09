@@ -9,19 +9,18 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 # Modified by Bowen Cheng from https://github.com/fundamentalvision/Deformable-DETR
 
-import os
 import glob
+import os
 
 import torch
-
-from torch.utils.cpp_extension import CUDA_HOME
-from torch.utils.cpp_extension import CppExtension
-from torch.utils.cpp_extension import CUDAExtension
-
 from setuptools import find_packages
 from setuptools import setup
+from torch.utils.cpp_extension import CUDAExtension
+from torch.utils.cpp_extension import CUDA_HOME
+from torch.utils.cpp_extension import CppExtension
 
 requirements = ["torch", "torchvision"]
+
 
 def get_extensions():
     this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -51,7 +50,8 @@ def get_extensions():
         if CUDA_HOME is None:
             raise NotImplementedError('CUDA_HOME is None. Please set environment variable CUDA_HOME.')
         else:
-            raise NotImplementedError('No CUDA runtime is found. Please set FORCE_CUDA=1 or test it by running torch.cuda.is_available().')
+            raise NotImplementedError(
+                'No CUDA runtime is found. Please set FORCE_CUDA=1 or test it by running torch.cuda.is_available().')
 
     sources = [os.path.join(extensions_dir, s) for s in sources]
     include_dirs = [extensions_dir]
@@ -65,6 +65,7 @@ def get_extensions():
         )
     ]
     return ext_modules
+
 
 setup(
     name="MultiScaleDeformableAttention",

@@ -1,4 +1,5 @@
 import sys
+
 sys.path.insert(0, "Mask2Former")
 import tempfile
 from pathlib import Path
@@ -7,7 +8,6 @@ import cv2
 import cog
 
 # import some common detectron2 utilities
-from detectron2.config import CfgNode as CN
 from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2.utils.visualizer import Visualizer, ColorMode
@@ -23,14 +23,14 @@ class Predictor(cog.Predictor):
         cfg = get_cfg()
         add_deeplab_config(cfg)
         add_maskformer2_config(cfg)
-        cfg.merge_from_file("Mask2Former/configs/coco/panoptic-segmentation/swin/maskformer2_swin_large_IN21k_384_bs16_100ep.yaml")
+        cfg.merge_from_file(
+            "Mask2Former/configs/coco/panoptic-segmentation/swin/maskformer2_swin_large_IN21k_384_bs16_100ep.yaml")
         cfg.MODEL.WEIGHTS = 'model_final_f07440.pkl'
         cfg.MODEL.MASK_FORMER.TEST.SEMANTIC_ON = True
         cfg.MODEL.MASK_FORMER.TEST.INSTANCE_ON = True
         cfg.MODEL.MASK_FORMER.TEST.PANOPTIC_ON = True
         self.predictor = DefaultPredictor(cfg)
         self.coco_metadata = MetadataCatalog.get("coco_2017_val_panoptic")
-
 
     @cog.input(
         "image",

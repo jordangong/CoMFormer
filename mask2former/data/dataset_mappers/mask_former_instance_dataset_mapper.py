@@ -5,13 +5,12 @@ import logging
 import numpy as np
 import pycocotools.mask as mask_util
 import torch
-from torch.nn import functional as F
-
 from detectron2.config import configurable
 from detectron2.data import detection_utils as utils
 from detectron2.data import transforms as T
 from detectron2.projects.point_rend import ColorAugSSDTransform
 from detectron2.structures import BitMasks, Instances, polygons_to_bitmask
+from torch.nn import functional as F
 
 __all__ = ["MaskFormerInstanceDatasetMapper"]
 
@@ -31,12 +30,12 @@ class MaskFormerInstanceDatasetMapper:
 
     @configurable
     def __init__(
-        self,
-        is_train=True,
-        *,
-        augmentations,
-        image_format,
-        size_divisibility,
+            self,
+            is_train=True,
+            *,
+            augmentations,
+            image_format,
+            size_divisibility,
     ):
         """
         NOTE: this interface is experimental.

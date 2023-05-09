@@ -1,5 +1,5 @@
-from .per_pixel import PerPixelDistillation
 from .maskformer import MaskFormerDistillation
+from .per_pixel import PerPixelDistillation
 
 
 def build_wrapper(cfg, model, model_old):

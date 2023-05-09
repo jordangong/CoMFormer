@@ -5,11 +5,9 @@ import logging
 
 import numpy as np
 import torch
-
 from detectron2.config import configurable
 from detectron2.data import detection_utils as utils
 from detectron2.data import transforms as T
-from detectron2.data.transforms import TransformGen
 from detectron2.structures import BitMasks, Boxes, Instances
 
 __all__ = ["COCOPanopticNewBaselineDatasetMapper"]
@@ -65,11 +63,11 @@ class COCOPanopticNewBaselineDatasetMapper:
 
     @configurable
     def __init__(
-        self,
-        is_train=True,
-        *,
-        tfm_gens,
-        image_format,
+            self,
+            is_train=True,
+            *,
+            tfm_gens,
+            image_format,
     ):
         """
         NOTE: this interface is experimental.

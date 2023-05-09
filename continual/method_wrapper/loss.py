@@ -47,7 +47,7 @@ def focal_distillation_loss(inputs, targets, use_new=False, alpha=1, gamma=2, ):
     labels = torch.softmax(targets * alpha, dim=1)
     labels_log = torch.log_softmax(targets * alpha, dim=1)
 
-    loss = (labels * (labels_log-outputs)).sum(dim=1)
+    loss = (labels * (labels_log - outputs)).sum(dim=1)
     pt = torch.exp(torch.clamp(-loss, max=0))
     f_loss = alpha * (1 - pt) ** gamma * loss
 
@@ -55,7 +55,7 @@ def focal_distillation_loss(inputs, targets, use_new=False, alpha=1, gamma=2, ):
 
 
 def L2_distillation_loss(inputs, targets, use_new=False):
-    inputs = torch.cat((inputs[:, :targets.shape[1]-1], inputs[:, -1:]), dim=1)  # only old classes or EOS
+    inputs = torch.cat((inputs[:, :targets.shape[1] - 1], inputs[:, -1:]), dim=1)  # only old classes or EOS
 
     labels = torch.softmax(targets, dim=1)
     outputs = torch.softmax(inputs, dim=1)
@@ -71,17 +71,17 @@ def L2_distillation_loss(inputs, targets, use_new=False):
 def knowledge_distillation_loss(inputs, targets, reweight=False, gamma=2., temperature=1., use_new=True):
     if use_new:
         outputs = torch.log_softmax(inputs, dim=1)  # remove no-class
-        outputs = torch.cat((outputs[:, :targets.shape[1]-1], outputs[:, -1:]), dim=1)  # only old classes or EOS
+        outputs = torch.cat((outputs[:, :targets.shape[1] - 1], outputs[:, -1:]), dim=1)  # only old classes or EOS
     else:
-        inputs = torch.cat((inputs[:, :targets.shape[1]-1], inputs[:, -1:]), dim=1)  # only old classes or EOS
+        inputs = torch.cat((inputs[:, :targets.shape[1] - 1], inputs[:, -1:]), dim=1)  # only old classes or EOS
         outputs = torch.log_softmax(inputs, dim=1)
     labels = torch.softmax(targets * temperature, dim=1)
     labels_log = torch.log_softmax(targets * temperature, dim=1)
 
-    loss = (labels*(labels_log - outputs)).sum(dim=1)  # B x Q
+    loss = (labels * (labels_log - outputs)).sum(dim=1)  # B x Q
     # Re-weight no-cls queries as in classification
     if reweight:
-        loss = ((1-labels[:, -1]) ** gamma * loss).sum() / ((1-labels[:, -1]) ** gamma).sum()
+        loss = ((1 - labels[:, -1]) ** gamma * loss).sum() / ((1 - labels[:, -1]) ** gamma).sum()
     else:
         loss = loss.mean()
     return loss
@@ -91,8 +91,8 @@ def unbiased_knowledge_distillation_loss(inputs, targets, reweight=False, gamma=
     targets = targets * temperature
 
     den = torch.logsumexp(inputs, dim=1)  # B, C
-    outputs_no_bgk = inputs[:, :targets.shape[1]-1] - den.unsqueeze(dim=1)  # B, OLD_CL, Q
-    outputs_bkg = torch.logsumexp(inputs[:, targets.shape[1]-1:], dim=1) - den  # B, Q
+    outputs_no_bgk = inputs[:, :targets.shape[1] - 1] - den.unsqueeze(dim=1)  # B, OLD_CL, Q
+    outputs_bkg = torch.logsumexp(inputs[:, targets.shape[1] - 1:], dim=1) - den  # B, Q
     labels = torch.softmax(targets, dim=1)  # B, BKG + OLD_CL, Q
     labels_soft = torch.log_softmax(targets, dim=1)
 
@@ -100,7 +100,7 @@ def unbiased_knowledge_distillation_loss(inputs, targets, reweight=False, gamma=
            (labels[:, :-1] * (labels_soft[:, :-1] - outputs_no_bgk)).sum(dim=1)  # B, Q
     # Re-weight no-cls queries as in classificaton
     if reweight:
-        loss = ((1-labels[:, -1]) ** gamma * loss).sum() / ((1-labels[:, -1]) ** gamma).sum()
+        loss = ((1 - labels[:, -1]) ** gamma * loss).sum() / ((1 - labels[:, -1]) ** gamma).sum()
     else:
         loss = loss.mean()
     return loss

@@ -14,7 +14,7 @@ def add_maskformer2_config(cfg):
     # Color augmentation
     cfg.INPUT.COLOR_AUG_SSD = False
     # We retry random cropping until no single category in semantic segmentation GT occupies more
-    # than `SINGLE_CATEGORY_MAX_AREA` part ofFthe crop.
+    # than `SINGLE_CATEGORY_MAX_AREA` part of the crop.
     cfg.INPUT.CROP.SINGLE_CATEGORY_MAX_AREA = 1.0
     # Pad image and segmentation GT in dataset mapper.
     cfg.INPUT.SIZE_DIVISIBILITY = -1
@@ -122,5 +122,3 @@ def add_maskformer2_config(cfg):
     # Importance sampling parameter for PointRend point sampling during training. Parametr `beta` in
     # the original paper.
     cfg.MODEL.MASK_FORMER.IMPORTANCE_SAMPLE_RATIO = 0.75
-
-

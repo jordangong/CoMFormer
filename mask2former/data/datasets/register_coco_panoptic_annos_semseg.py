@@ -3,10 +3,8 @@ import json
 import os
 
 from detectron2.data import DatasetCatalog, MetadataCatalog
-from detectron2.data.datasets import load_sem_seg
 from detectron2.data.datasets.builtin_meta import COCO_CATEGORIES
 from detectron2.utils.file_io import PathManager
-
 
 _PREDEFINED_SPLITS_COCO_PANOPTIC = {
     "coco_2017_train_panoptic": (
@@ -127,7 +125,7 @@ def load_coco_panoptic_json(json_file, image_dir, gt_dir, semseg_dir, meta):
 
 
 def register_coco_panoptic_annos_sem_seg(
-    name, metadata, image_root, panoptic_root, panoptic_json, sem_seg_root, instances_json
+        name, metadata, image_root, panoptic_root, panoptic_json, sem_seg_root, instances_json
 ):
     panoptic_name = name
     delattr(MetadataCatalog.get(panoptic_name), "thing_classes")
@@ -159,8 +157,8 @@ def register_coco_panoptic_annos_sem_seg(
 
 def register_all_coco_panoptic_annos_sem_seg(root):
     for (
-        prefix,
-        (panoptic_root, panoptic_json, semantic_root),
+            prefix,
+            (panoptic_root, panoptic_json, semantic_root),
     ) in _PREDEFINED_SPLITS_COCO_PANOPTIC.items():
         prefix_instances = prefix[: -len("_panoptic")]
         instances_meta = MetadataCatalog.get(prefix_instances)

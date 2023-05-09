@@ -1,18 +1,18 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 # Modified by Bowen Cheng from: https://github.com/facebookresearch/detr/blob/master/models/detr.py
 import logging
-import fvcore.nn.weight_init as weight_init
 from typing import Optional, List
+
+import fvcore.nn.weight_init as weight_init
 import torch
+from detectron2.config import configurable
+from detectron2.layers import Conv2d
 from torch import nn, Tensor
 from torch.nn import functional as F
 
-from detectron2.config import configurable
-from detectron2.layers import Conv2d
-
-from .position_encoding import PositionEmbeddingSine
-from .maskformer_transformer_decoder import TRANSFORMER_DECODER_REGISTRY
 from continual.modeling import IncrementalClassifier, CosineClassifier
+from .maskformer_transformer_decoder import TRANSFORMER_DECODER_REGISTRY
+from .position_encoding import PositionEmbeddingSine
 
 
 class SelfAttentionLayer(nn.Module):
@@ -29,7 +29,7 @@ class SelfAttentionLayer(nn.Module):
         self.normalize_before = normalize_before
 
         self._reset_parameters()
-    
+
     def _reset_parameters(self):
         for p in self.parameters():
             if p.dim() > 1:
@@ -59,7 +59,7 @@ class SelfAttentionLayer(nn.Module):
         tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask,
                               key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout(tgt2)
-        
+
         return tgt
 
     def forward(self, tgt,
@@ -87,7 +87,7 @@ class CrossAttentionLayer(nn.Module):
         self.normalize_before = normalize_before
 
         self._reset_parameters()
-    
+
     def _reset_parameters(self):
         for p in self.parameters():
             if p.dim() > 1:
@@ -107,7 +107,7 @@ class CrossAttentionLayer(nn.Module):
                                    key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt + self.dropout(tgt2)
         tgt = self.norm(tgt)
-        
+
         return tgt
 
     def forward_pre(self, tgt, memory,
@@ -152,7 +152,7 @@ class FFNLayer(nn.Module):
         self.normalize_before = normalize_before
 
         self._reset_parameters()
-    
+
     def _reset_parameters(self):
         for p in self.parameters():
             if p.dim() > 1:
@@ -207,11 +207,10 @@ class MLP(nn.Module):
 
 @TRANSFORMER_DECODER_REGISTRY.register()
 class MultiScaleMaskedTransformerDecoder(nn.Module):
-
     _version = 2
 
     def _load_from_state_dict(
-        self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+            self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
     ):
         version = local_metadata.get("version", None)
         if version is None or version < 2:
@@ -235,24 +234,24 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
 
     @configurable
     def __init__(
-        self,
-        in_channels,
-        mask_classification=True,
-        *,
-        num_classes: int,
-        hidden_dim: int,
-        num_queries: int,
-        nheads: int,
-        dim_feedforward: int,
-        dec_layers: int,
-        pre_norm: bool,
-        mask_dim: int,
-        enforce_input_project: bool,
-        softmask: bool = False,
-        inc_query: Optional[bool] = None,
-        cosine: Optional[bool] = False,
-        bias: Optional[bool] = False,
-        classes: Optional[List[int]] = None,
+            self,
+            in_channels,
+            mask_classification=True,
+            *,
+            num_classes: int,
+            hidden_dim: int,
+            num_queries: int,
+            nheads: int,
+            dim_feedforward: int,
+            dec_layers: int,
+            pre_norm: bool,
+            mask_dim: int,
+            enforce_input_project: bool,
+            softmask: bool = False,
+            inc_query: Optional[bool] = None,
+            cosine: Optional[bool] = False,
+            bias: Optional[bool] = False,
+            classes: Optional[List[int]] = None,
     ):
         """
         NOTE: this interface is experimental.
@@ -280,7 +279,7 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
         # positional encoding
         N_steps = hidden_dim // 2
         self.pe_layer = PositionEmbeddingSine(N_steps, normalize=True)
-        
+
         # define Transformer decoder here
         self.num_heads = nheads
         self.num_layers = dec_layers
@@ -356,7 +355,7 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
 
         if hasattr(cfg, "CONT"):
             ret['inc_query'] = cfg.CONT.INC_QUERY
-            ret["classes"] = [cfg.CONT.BASE_CLS] + cfg.CONT.TASK*[cfg.CONT.INC_CLS]
+            ret["classes"] = [cfg.CONT.BASE_CLS] + cfg.CONT.TASK * [cfg.CONT.INC_CLS]
             ret["num_classes"] = cfg.CONT.BASE_CLS + cfg.CONT.TASK * cfg.CONT.INC_CLS
             ret["cosine"] = cfg.CONT.COSINE
             ret["bias"] = cfg.CONT.USE_BIAS
@@ -368,7 +367,7 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
             ret['inc_query'] = None
             ret["num_classes"] = cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES
             if not cfg.MODEL.MASK_FORMER.TEST.MASK_BG and (cfg.MODEL.MASK_FORMER.TEST.SEMANTIC_ON or
-                                                       cfg.MODEL.MASK_FORMER.TEST.PANOPTIC_ON):
+                                                           cfg.MODEL.MASK_FORMER.TEST.PANOPTIC_ON):
                 ret["num_classes"] -= 1
         ret["hidden_dim"] = cfg.MODEL.MASK_FORMER.HIDDEN_DIM
         ret["num_queries"] = cfg.MODEL.MASK_FORMER.NUM_OBJECT_QUERIES
@@ -448,14 +447,15 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
                 tgt_key_padding_mask=None,
                 query_pos=query_embed
             )
-            
+
             # FFN
             output = self.transformer_ffn_layers[i](
                 output
             )
 
             outputs_class, outputs_mask, attn_mask = self.forward_prediction_heads(output, mask_features,
-                                                                                   attn_mask_target_size=size_list[(i + 1) % self.num_feature_levels])
+                                                                                   attn_mask_target_size=size_list[(
+                                                                                                                               i + 1) % self.num_feature_levels])
             query_feat.append(output)
             predictions_class.append(outputs_class)
             predictions_mask.append(outputs_mask)
@@ -486,9 +486,11 @@ class MultiScaleMaskedTransformerDecoder(nn.Module):
         # must use bool type
         # If a BoolTensor is provided, positions with ``True`` are not allowed to attend while ``False`` values will be unchanged.
         if self.softmask:
-            attn_mask = (attn_mask.softmax(dim=1).flatten(2).unsqueeze(1).repeat(1, self.num_heads, 1, 1).flatten(0, 1) < 0.5).bool()
+            attn_mask = (attn_mask.softmax(dim=1).flatten(2).unsqueeze(1).repeat(1, self.num_heads, 1, 1).flatten(0,
+                                                                                                                  1) < 0.5).bool()
         else:
-            attn_mask = (attn_mask.sigmoid().flatten(2).unsqueeze(1).repeat(1, self.num_heads, 1, 1).flatten(0, 1) < 0.5).bool()
+            attn_mask = (attn_mask.sigmoid().flatten(2).unsqueeze(1).repeat(1, self.num_heads, 1, 1).flatten(0,
+                                                                                                             1) < 0.5).bool()
         attn_mask = attn_mask.detach()
 
         return outputs_class, outputs_mask, attn_mask

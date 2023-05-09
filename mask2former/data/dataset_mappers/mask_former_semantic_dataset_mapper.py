@@ -4,14 +4,13 @@ import logging
 
 import numpy as np
 import torch
-from torch.nn import functional as F
-
 from detectron2.config import configurable
 from detectron2.data import MetadataCatalog
 from detectron2.data import detection_utils as utils
 from detectron2.data import transforms as T
 from detectron2.projects.point_rend import ColorAugSSDTransform
 from detectron2.structures import BitMasks, Instances
+from torch.nn import functional as F
 
 __all__ = ["MaskFormerSemanticDatasetMapper"]
 
@@ -31,14 +30,14 @@ class MaskFormerSemanticDatasetMapper:
 
     @configurable
     def __init__(
-        self,
-        is_train=True,
-        *,
-        augmentations,
-        image_format,
-        ignore_label,
-        size_divisibility,
-        remove_bkg,
+            self,
+            is_train=True,
+            *,
+            augmentations,
+            image_format,
+            ignore_label,
+            size_divisibility,
+            remove_bkg,
     ):
         """
         NOTE: this interface is experimental.

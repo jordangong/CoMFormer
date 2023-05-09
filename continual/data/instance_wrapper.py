@@ -1,36 +1,32 @@
-from typing import Callable, List, Union, Optional, Callable
-import os
+import logging
 import multiprocessing
+import os
 from functools import partial
+from typing import List, Union, Optional, Callable
 
 import numpy as np
-
-from detectron2.data import build_detection_train_loader, build_detection_test_loader
-
+import torchvision
+from PIL import Image
+from continuum.download import ProgressBar
 from continuum.scenarios import ClassIncremental
 from continuum.tasks import TaskSet
-from continuum.download import ProgressBar
-
-from PIL import Image
-import torch
-import logging
-import torchvision
+from detectron2.data import build_detection_train_loader, build_detection_test_loader
 
 
 class InstanceContinualDetectron(ClassIncremental):
 
     def __init__(
-        self,
-        cl_dataset: List[dict],
-        nb_classes: int,
-        increment: Union[List[int], int] = 0,
-        initial_increment: int = 0,
-        mapper: Callable = None,
-        class_order: Optional[List[int]] = None,
-        mode: str = "overlap",
-        save_indexes: Optional[str] = None,
-        masking_value: Optional[int] = None,  # NEVER USED
-        cfg = None
+            self,
+            cl_dataset: List[dict],
+            nb_classes: int,
+            increment: Union[List[int], int] = 0,
+            initial_increment: int = 0,
+            mapper: Callable = None,
+            class_order: Optional[List[int]] = None,
+            mode: str = "overlap",
+            save_indexes: Optional[str] = None,
+            masking_value: Optional[int] = None,  # NEVER USED
+            cfg=None
     ) -> None:
         self.mode = mode
         self.save_indexes = save_indexes + ".npy"
@@ -100,10 +96,10 @@ class InstanceContinualDetectron(ClassIncremental):
 
         labels = set()
         for t in task_indexes:
-           previous_inc = sum(self._increments[:t])
-           labels.update(
-               self.class_order[previous_inc:previous_inc+self._increments[t]]
-           )
+            previous_inc = sum(self._increments[:t])
+            labels.update(
+                self.class_order[previous_inc:previous_inc + self._increments[t]]
+            )
 
         return list(labels)
 
@@ -258,6 +254,7 @@ class InstanceContinualDetectron(ClassIncremental):
         # so we can quickly find the original labels
         def class_mapping(c):
             return self.class_order[c]
+
         self._class_mapping = np.vectorize(class_mapping)
 
         self._increments = self._define_increments(
@@ -289,10 +286,10 @@ class InstanceContinualDetectron(ClassIncremental):
 
 
 def _filter_images(
-    paths: Union[np.ndarray, List[str]],
-    increments: List[int],
-    class_order: List[int],
-    mode: str = "overlap"
+        paths: Union[np.ndarray, List[str]],
+        increments: List[int],
+        class_order: List[int],
+        mode: str = "overlap"
 ) -> np.ndarray:
     """Select images corresponding to the labels.
 
@@ -323,7 +320,7 @@ def _filter_images(
     accumulated_inc = 0
 
     for task_id, inc in enumerate(increments):
-        labels = class_order[accumulated_inc:accumulated_inc+inc]
+        labels = class_order[accumulated_inc:accumulated_inc + inc]
         old_labels = class_order[:accumulated_inc]
         all_labels = labels + old_labels + [255]
 

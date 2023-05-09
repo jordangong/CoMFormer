@@ -1,20 +1,18 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 # Modified by Bowen Cheng from: https://github.com/facebookresearch/detr/blob/master/models/detr.py
-import fvcore.nn.weight_init as weight_init
 from typing import Optional, List
 
+import fvcore.nn.weight_init as weight_init
 import torch
-from torch import nn
-from torch.nn import functional as F
-
 from detectron2.config import configurable
 from detectron2.layers import Conv2d
 from detectron2.utils.registry import Registry
+from torch import nn
+from torch.nn import functional as F
 
+from continual.modeling import IncrementalClassifier
 from .position_encoding import PositionEmbeddingSine
 from .transformer import Transformer
-from continual.modeling import IncrementalClassifier
-
 
 TRANSFORMER_DECODER_REGISTRY = Registry("TRANSFORMER_MODULE")
 TRANSFORMER_DECODER_REGISTRY.__doc__ = """
@@ -34,23 +32,23 @@ def build_transformer_decoder(cfg, in_channels, mask_classification=True):
 class StandardTransformerDecoder(nn.Module):
     @configurable
     def __init__(
-        self,
-        in_channels,
-        mask_classification=True,
-        *,
-        num_classes: int,
-        hidden_dim: int,
-        num_queries: int,
-        nheads: int,
-        dropout: float,
-        dim_feedforward: int,
-        enc_layers: int,
-        dec_layers: int,
-        pre_norm: bool,
-        deep_supervision: bool,
-        mask_dim: int,
-        enforce_input_project: bool,
-        classes: Optional[List[int]] = None,
+            self,
+            in_channels,
+            mask_classification=True,
+            *,
+            num_classes: int,
+            hidden_dim: int,
+            num_queries: int,
+            nheads: int,
+            dropout: float,
+            dim_feedforward: int,
+            enc_layers: int,
+            dec_layers: int,
+            pre_norm: bool,
+            deep_supervision: bool,
+            mask_dim: int,
+            enforce_input_project: bool,
+            classes: Optional[List[int]] = None,
     ):
         """
         NOTE: this interface is experimental.
@@ -120,8 +118,8 @@ class StandardTransformerDecoder(nn.Module):
         ret["mask_classification"] = mask_classification
 
         if hasattr(cfg, "CONT"):
-            ret["classes"] = [cfg.CONT.BASE_CLS] + cfg.CONT.TASK*[cfg.CONT.INC_CLS]
-            ret["num_classes"] = cfg.CONT.BASE_CLS + cfg.CONT.TASK*cfg.CONT.INC_CLS
+            ret["classes"] = [cfg.CONT.BASE_CLS] + cfg.CONT.TASK * [cfg.CONT.INC_CLS]
+            ret["num_classes"] = cfg.CONT.BASE_CLS + cfg.CONT.TASK * cfg.CONT.INC_CLS
             if cfg.MODEL.MASK_FORMER.TEST.MASK_BG:
                 ret["num_classes"] += 1
                 ret["classes"][0] += 1

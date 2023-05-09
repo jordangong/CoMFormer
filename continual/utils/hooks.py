@@ -1,9 +1,10 @@
-from fvcore.common.checkpoint import PeriodicCheckpointer as _PeriodicCheckpointer
-from detectron2.engine.train_loop import HookBase
-from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple
-from detectron2.engine.hooks import EvalHook
-from detectron2.evaluation.testing import flatten_results_dict
+from typing import Any
+
 import detectron2.utils.comm as comm
+from detectron2.engine.hooks import EvalHook
+from detectron2.engine.train_loop import HookBase
+from detectron2.evaluation.testing import flatten_results_dict
+from fvcore.common.checkpoint import PeriodicCheckpointer as _PeriodicCheckpointer
 
 
 class BetterEvalHook(EvalHook):
@@ -76,7 +77,7 @@ class BetterPeriodicCheckpointer(_PeriodicCheckpointer, HookBase):
                 if len(self.recent_checkpoints) > self.max_to_keep:
                     file_to_delete = self.recent_checkpoints.pop(0)
                     if self.path_manager.exists(
-                        file_to_delete
+                            file_to_delete
                     ) and not file_to_delete.endswith(f"{self.file_prefix}_final.pth"):
                         self.path_manager.rm(file_to_delete)
 

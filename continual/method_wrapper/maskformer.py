@@ -1,11 +1,11 @@
-from .base import BaseDistillation
-from mask2former.maskformer_model import MaskFormer
-from mask2former.modeling.matcher import HungarianMatcher, SoftmaxMatcher
-from .set_criterion import KDSetCriterion, SoftmaxKDSetCriterion
-from .set_pseudo import PseudoSetCriterion
 import torch
 import torch.nn.functional as F
+
 from continual.modeling.pod import func_pod_loss
+from mask2former.maskformer_model import MaskFormer
+from mask2former.modeling.matcher import HungarianMatcher, SoftmaxMatcher
+from .base import BaseDistillation
+from .set_criterion import KDSetCriterion, SoftmaxKDSetCriterion
 
 
 def pod_loss(output, output_old):
@@ -14,7 +14,8 @@ def pod_loss(output, output_old):
     input_feat = [input_feat[key] for key in ['res2', 'res3', 'res4', 'res5']] + [output['outputs']['features']]
 
     old_feat = output_old['features']
-    old_feat = [old_feat[key].detach() for key in ['res2', 'res3', 'res4', 'res5']] + [output_old['outputs']['features']]
+    old_feat = [old_feat[key].detach() for key in ['res2', 'res3', 'res4', 'res5']] + [
+        output_old['outputs']['features']]
 
     loss = {"loss_pod": func_pod_loss(input_feat, old_feat, scales=[1, 2, 4])}
     return loss
@@ -63,7 +64,7 @@ class MaskFormerDistillation(BaseDistillation):
 
         weight_dict = {"loss_ce": class_weight, "loss_mask": mask_weight,
                        "loss_dice": dice_weight, "loss_kd": self.kd_weight, "loss_mask_kd": cfg.CONT.DIST.MASK_KD,
-                       "loss_pod": cfg.CONT.DIST.POD_WEIGHT * (self.new_classes / self.num_classes)**0.5}
+                       "loss_pod": cfg.CONT.DIST.POD_WEIGHT * (self.new_classes / self.num_classes) ** 0.5}
 
         if deep_supervision:
             dec_layers = cfg.MODEL.MASK_FORMER.DEC_LAYERS

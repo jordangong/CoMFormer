@@ -91,7 +91,7 @@ def dice_loss(
         inputs: torch.Tensor,
         targets: torch.Tensor,
         num_masks: float,
-    ):
+):
     """
     Compute the DICE loss, similar to generalized IOU for masks
     Args:
@@ -113,7 +113,7 @@ def softmax_dice_loss(
         inputs: torch.Tensor,
         targets: torch.Tensor,
         num_masks: float,
-    ):
+):
     """
     Compute the DICE loss, similar to generalized IOU for masks
     Args:
@@ -134,7 +134,7 @@ def sigmoid_ce_loss(
         inputs: torch.Tensor,
         targets: torch.Tensor,
         num_masks: float,
-    ):
+):
     """
     Args:
         inputs: A float tensor of arbitrary shape.
@@ -154,7 +154,7 @@ def softmax_ce_loss(
         inputs: torch.Tensor,
         targets: torch.Tensor,
         num_masks: float,
-    ):
+):
     # loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction="none")
     loss = - inputs * targets
 

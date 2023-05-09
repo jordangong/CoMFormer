@@ -32,7 +32,7 @@ def main():
     else:
         get_boundary = False
     cocoGt = COCO(annFile, get_boundary=get_boundary, dilation_ratio=dilation_ratio)
-    
+
     # remove box predictions
     resFile = json.load(open(resFile))
     for c in resFile:

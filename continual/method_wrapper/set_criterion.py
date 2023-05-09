@@ -1,13 +1,13 @@
-from detectron2.utils.comm import get_world_size
 from detectron2.projects.point_rend.point_features import (
     get_uncertain_point_coords_with_randomness,
     point_sample,
 )
+from detectron2.utils.comm import get_world_size
 
-from mask2former.utils.misc import is_dist_avail_and_initialized, nested_tensor_from_tensor_list
 from mask2former.modeling.criterion import calculate_uncertainty, SetCriterion
 from mask2former.modeling.mask_losses import dice_loss_jit, sigmoid_ce_loss_jit, \
     softmax_dice_loss_jit, softmax_ce_loss_jit
+from mask2former.utils.misc import is_dist_avail_and_initialized, nested_tensor_from_tensor_list
 from .loss import *
 
 
@@ -59,7 +59,7 @@ class KDSetCriterion(SetCriterion):
 
         if self.uce and self.focal:
             loss_ce = focal_uce_loss(src_logits.transpose(1, 2), target_classes,
-                                     old_cl=self.old_classes,  gamma=self.focal_gamma, alpha=self.focal_alpha)
+                                     old_cl=self.old_classes, gamma=self.focal_gamma, alpha=self.focal_alpha)
         elif self.uce:
             loss_ce = unbiased_cross_entropy_loss(src_logits.transpose(1, 2), target_classes,
                                                   old_cl=self.old_classes, weights=self.empty_weight, reduction='mean')
@@ -198,7 +198,7 @@ class KDSetCriterion(SetCriterion):
 
 
 class SoftmaxKDSetCriterion(KDSetCriterion):
-    def loss_masks(self,  outputs, targets, indices, num_masks, outputs_old=None):
+    def loss_masks(self, outputs, targets, indices, num_masks, outputs_old=None):
         """Compute the losses related to the masks: the focal loss and the dice loss.
         targets dicts must contain the key "masks" containing a tensor of dim [nb_target_boxes, h, w]
         """
@@ -226,7 +226,7 @@ class SoftmaxKDSetCriterion(KDSetCriterion):
             # sample point_coords
             point_coords = get_uncertain_point_coords_with_randomness(
                 src_masks,
-                lambda logits: calculate_uncertainty(2*logits-1),  # normalize to zero
+                lambda logits: calculate_uncertainty(2 * logits - 1),  # normalize to zero
                 self.num_points,
                 self.oversample_ratio,
                 self.importance_sample_ratio,

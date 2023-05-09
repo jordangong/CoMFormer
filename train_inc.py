@@ -16,17 +16,14 @@ except:
 import copy
 import itertools
 import logging
-import wandb
 import os
 import weakref
 from collections import OrderedDict
 from typing import Any, Dict, List, Set
-import torch
-from fvcore.nn.precise_bn import get_bn_modules
 
-# Detectron
-from detectron2.modeling import build_model
 import detectron2.utils.comm as comm
+import torch
+import wandb
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import get_cfg
 from detectron2.data import MetadataCatalog, get_detection_dataset_dicts, DatasetMapper
@@ -36,6 +33,9 @@ from detectron2.engine import (
     default_setup,
     launch,
 )
+from detectron2.engine import hooks
+from detectron2.engine.defaults import create_ddp_model, default_writers
+from detectron2.engine.train_loop import SimpleTrainer, AMPTrainer, TrainerBase
 from detectron2.evaluation import (
     DatasetEvaluators,
     DatasetEvaluator,
@@ -44,13 +44,20 @@ from detectron2.evaluation import (
     verify_results,
     COCOEvaluator,
 )
+# Detectron
+from detectron2.modeling import build_model
 from detectron2.projects.deeplab import add_deeplab_config, build_lr_scheduler
 from detectron2.solver.build import maybe_add_gradient_clipping
 from detectron2.utils.logger import setup_logger
-from detectron2.engine.train_loop import SimpleTrainer, AMPTrainer, TrainerBase
-from detectron2.engine import hooks
-from detectron2.engine.defaults import create_ddp_model, default_writers
+from fvcore.nn.precise_bn import get_bn_modules
 
+# print("before continual")
+from continual import add_continual_config
+from continual.data import ContinualDetectron, InstanceContinualDetectron
+from continual.evaluation import ContinualSemSegEvaluator, ContinualCOCOPanopticEvaluator
+from continual.method_wrapper import build_wrapper
+from continual.modeling.classifier import WA_Hook
+from continual.utils.hooks import BetterPeriodicCheckpointer, BetterEvalHook
 # print("before mask2former")
 # MaskFormer
 from mask2former import (
@@ -63,13 +70,6 @@ from mask2former import (
     MaskFormerPanopticDatasetMapper,
 )
 
-# print("before continual")
-from continual import add_continual_config
-from continual.data import ContinualDetectron, InstanceContinualDetectron
-from continual.evaluation import ContinualSemSegEvaluator, ContinualCOCOPanopticEvaluator
-from continual.method_wrapper import build_wrapper
-from continual.utils.hooks import BetterPeriodicCheckpointer, BetterEvalHook
-from continual.modeling.classifier import WA_Hook
 
 # print('done')
 
@@ -462,7 +462,6 @@ class IncrementalTrainer(TrainerBase):
         if evaluator_type == "ade20k_panoptic_seg" and cfg.MODEL.MASK_FORMER.TEST.PANOPTIC_ON:
             evaluator_list.append(ContinualCOCOPanopticEvaluator(dataset_name, output_folder))
 
-
         if len(evaluator_list) == 0:
             raise NotImplementedError(
                 "no Evaluator for the dataset {} with the type {}".format(
@@ -508,7 +507,7 @@ class IncrementalTrainer(TrainerBase):
                 try:
                     evaluator = cls.build_evaluator(cfg, dataset_name)
                 except NotImplementedError:
-                    logger.warn(
+                    logger.warning(
                         "No evaluator found. Use `DefaultTrainer.test(evaluators=)`, "
                         "or implement its `build_evaluator` method."
                     )
@@ -639,7 +638,7 @@ class IncrementalTrainer(TrainerBase):
             for k in res:
                 if k.startswith("AP-"):
                     class_ap.append(res[k])
-            with open(path, "a") as out: # "AP", "AP50", "AP75", "APs", "APm", "APl"
+            with open(path, "a") as out:  # "AP", "AP50", "AP75", "APs", "APm", "APl"
                 out.write(f"{name},{self.cfg.CONT.TASK},{res['AP']},{res['AP50']},{res['AP75']},")
                 out.write(",".join([str(i) for i in class_ap]))
                 out.write("\n")
@@ -686,7 +685,8 @@ def setup(args):
     setup_logger(output=cfg.OUTPUT_DIR, distributed_rank=comm.get_rank(), name="mask2former")
     if comm.get_rank() == 0 and cfg.WANDB:
         wandb.init(project="ContM2F", name=cfg.NAME + "_step" + str(cfg.CONT.TASK),
-                   config=cfg, sync_tensorboard=True, group=cfg.TASK_NAME, settings=wandb.Settings(start_method="fork"))
+                   config=cfg, sync_tensorboard=True, group=cfg.TASK_NAME,
+                   settings=wandb.Settings(start_method="fork"))
 
     return cfg
 

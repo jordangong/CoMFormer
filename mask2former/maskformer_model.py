@@ -2,16 +2,15 @@
 from typing import Tuple
 
 import torch
-from torch import nn
-from torch.nn import functional as F
-
 from detectron2.config import configurable
 from detectron2.data import MetadataCatalog
 from detectron2.modeling import META_ARCH_REGISTRY, build_backbone, build_sem_seg_head
 from detectron2.modeling.backbone import Backbone
 from detectron2.modeling.postprocessing import sem_seg_postprocess
-from detectron2.structures import Boxes, ImageList, Instances, BitMasks
+from detectron2.structures import Boxes, ImageList, Instances
 from detectron2.utils.memory import retry_if_cuda_oom
+from torch import nn
+from torch.nn import functional as F
 
 from .modeling.criterion import setup_mask_criterion
 
@@ -354,7 +353,7 @@ class MaskFormer(nn.Module):
 
             if cur_masks.shape[0] == 0:
                 # We didn't detect any mask :(
-                semseg = F.one_hot(semseg, self.num_classes+1).float().permute(2, 0, 1)
+                semseg = F.one_hot(semseg, self.num_classes + 1).float().permute(2, 0, 1)
             else:
                 # take argmax
                 cur_mask_ids = cur_prob_masks.argmax(0)
@@ -364,15 +363,15 @@ class MaskFormer(nn.Module):
                     mask_area = (cur_mask_ids == k).sum().item()
                     original_area = (cur_masks[k] >= self.mask_threshold).sum().item()
                     mask = (cur_mask_ids == k) & (cur_masks[k] >= self.mask_threshold)
-                    #fixme mask_area should be computed differently !
+                    # fixme mask_area should be computed differently !
                     # mask_area = mask.sum().item()
 
                     if mask_area > 0 and original_area > 0 and mask.sum().item() > 0:
                         if mask_area / original_area < self.overlap_threshold:
                             continue
 
-                        semseg[mask] = pred_class + 1 # ADD ONE FOR BKG
-                semseg = F.one_hot(semseg, self.num_classes+1).float().permute(2, 0, 1)
+                        semseg[mask] = pred_class + 1  # ADD ONE FOR BKG
+                semseg = F.one_hot(semseg, self.num_classes + 1).float().permute(2, 0, 1)
         return semseg
 
     def panoptic_inference(self, mask_cls, mask_pred):
@@ -472,7 +471,7 @@ class MaskFormer(nn.Module):
         # calculate average mask prob
         if not self.softmask:
             mask_scores_per_image = (mask_pred.sigmoid().flatten(1) * result.pred_masks.flatten(1)).sum(1) / (
-                        result.pred_masks.flatten(1).sum(1) + 1e-6)
+                    result.pred_masks.flatten(1).sum(1) + 1e-6)
         else:
             mask_scores_per_image = (mask_pred.flatten(1) * result.pred_masks.flatten(1)).sum(1) / (
                     result.pred_masks.flatten(1).sum(1) + 1e-6)
@@ -525,7 +524,7 @@ class MaskFormer(nn.Module):
         # calculate average mask prob
         if not self.softmask:
             mask_scores_per_image = (mask_pred.sigmoid().flatten(1) * result.pred_masks.flatten(1)).sum(1) / (
-                        result.pred_masks.flatten(1).sum(1) + 1e-6)
+                    result.pred_masks.flatten(1).sum(1) + 1e-6)
         else:
             mask_scores_per_image = (mask_pred.flatten(1) * result.pred_masks.flatten(1)).sum(1) / (
                     result.pred_masks.flatten(1).sum(1) + 1e-6)

@@ -1,4 +1,5 @@
 from typing import Mapping
+
 import torch
 
 
@@ -12,7 +13,7 @@ class BaseDistillation:
                        cfg.MODEL.MASK_FORMER.PER_PIXEL) and cfg.MODEL.MASK_FORMER.TEST.SEMANTIC_ON
 
         self.classes = [cfg.CONT.BASE_CLS] + cfg.CONT.TASK * [cfg.CONT.INC_CLS]
-        self.old_classes = cfg.CONT.BASE_CLS + (cfg.CONT.TASK-1) * cfg.CONT.INC_CLS if cfg.CONT.TASK > 0 else -1
+        self.old_classes = cfg.CONT.BASE_CLS + (cfg.CONT.TASK - 1) * cfg.CONT.INC_CLS if cfg.CONT.TASK > 0 else -1
         self.new_classes = cfg.CONT.INC_CLS if cfg.CONT.TASK > 0 else cfg.CONT.BASE_CLS
         self.num_classes = cfg.CONT.BASE_CLS + cfg.CONT.TASK * cfg.CONT.INC_CLS
         if self.use_bg:

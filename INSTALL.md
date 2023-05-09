@@ -3,6 +3,7 @@
 Please, follow the installation instruction of [Mask2Former](https://github.com/facebookresearch/Mask2Former).
 
 ### Requirements
+
 - Linux or macOS with Python ≥ 3.6
 - PyTorch ≥ 1.9 and [torchvision](https://github.com/pytorch/vision/) that matches the PyTorch installation.
   Install them together at [pytorch.org](https://pytorch.org) to make sure of this. Note, please check
@@ -12,6 +13,7 @@ Please, follow the installation instruction of [Mask2Former](https://github.com/
 - `pip install -r requirements.txt`
 
 ### Example conda environment setup
+
 ```bash
 conda create --name mask2former python=3.8 -y
 conda activate mask2former

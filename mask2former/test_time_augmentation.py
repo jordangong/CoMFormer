@@ -1,17 +1,13 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 import copy
-import logging
-from itertools import count
 
 import numpy as np
 import torch
+from detectron2.data.detection_utils import read_image
+from detectron2.modeling import DatasetMapperTTA
 from fvcore.transforms import HFlipTransform
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
-
-from detectron2.data.detection_utils import read_image
-from detectron2.modeling import DatasetMapperTTA
-
 
 __all__ = [
     "SemanticSegmentorWithTTA",

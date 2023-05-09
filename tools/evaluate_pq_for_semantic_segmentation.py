@@ -5,17 +5,13 @@ import argparse
 import json
 import os
 from collections import defaultdict
-from tqdm import tqdm
 
 import numpy as np
-import torch
-
 from detectron2.data import MetadataCatalog
 from detectron2.data.detection_utils import read_image
-from detectron2.utils.file_io import PathManager
-from pycocotools import mask as maskUtils
-
 from panopticapi.evaluation import PQStat
+from pycocotools import mask as maskUtils
+from tqdm import tqdm
 
 
 def default_argument_parser():
@@ -54,7 +50,7 @@ def pq_compute_single_image(segm_gt, segm_dt, categories, ignore_label):
         gt_ann['segments_info'].append(
             {"id": cat_id, "category_id": cat_id, "area": cnt, "iscrowd": 0}
         )
-    
+
     pred_ann = {'segments_info': []}
     for cat_id in np.unique(segm_dt):
         pred_ann['segments_info'].append({"id": cat_id, "category_id": cat_id})
@@ -69,13 +65,20 @@ def pq_compute_single_image(segm_gt, segm_dt, categories, ignore_label):
         if label not in pred_segms:
             if label == VOID:
                 continue
-            raise KeyError('In the image with ID {} segment with ID {} is presented in PNG and not presented in JSON.'.format(image_id, label))
+            raise KeyError(
+                'In the image with ID {} segment with ID {} is presented in PNG and not presented in JSON.'.format(
+                    image_id, label))
         pred_segms[label]['area'] = label_cnt
         pred_labels_set.remove(label)
         if pred_segms[label]['category_id'] not in categories:
-            raise KeyError('In the image with ID {} segment with ID {} has unknown category_id {}.'.format(image_id, label, pred_segms[label]['category_id']))
+            raise KeyError(
+                'In the image with ID {} segment with ID {} has unknown category_id {}.'.format(image_id, label,
+                                                                                                pred_segms[label][
+                                                                                                    'category_id']))
     if len(pred_labels_set) != 0:
-        raise KeyError('In the image with ID {} the following segment IDs {} are presented in JSON and not presented in PNG.'.format(image_id, list(pred_labels_set)))
+        raise KeyError(
+            'In the image with ID {} the following segment IDs {} are presented in JSON and not presented in PNG.'.format(
+                image_id, list(pred_labels_set)))
 
     # confusion matrix calculation
     pan_gt_pred = pan_gt.astype(np.uint64) * OFFSET + pan_pred.astype(np.uint64)
@@ -100,7 +103,8 @@ def pq_compute_single_image(segm_gt, segm_dt, categories, ignore_label):
         if gt_segms[gt_label]['category_id'] != pred_segms[pred_label]['category_id']:
             continue
 
-        union = pred_segms[pred_label]['area'] + gt_segms[gt_label]['area'] - intersection - gt_pred_map.get((VOID, pred_label), 0)
+        union = pred_segms[pred_label]['area'] + gt_segms[gt_label]['area'] - intersection - gt_pred_map.get(
+            (VOID, pred_label), 0)
         iou = intersection / union
         if iou > 0.5:
             pq_stat[gt_segms[gt_label]['category_id']].tp += 1
@@ -150,7 +154,7 @@ def main():
     for pred in predictions:
         image_id = os.path.basename(pred["file_name"]).split(".")[0]
         imgToAnns[image_id].append(
-            {"category_id" : pred["category_id"], "segmentation" : pred["segmentation"]}
+            {"category_id": pred["category_id"], "segmentation": pred["segmentation"]}
         )
 
     image_ids = list(imgToAnns.keys())
@@ -166,7 +170,7 @@ def main():
         categories[i] = {"id": i, "name": class_names[i], "isthing": 0}
 
     pq_stat = PQStat()
-    
+
     for image_id in tqdm(image_ids):
         if args.dataset_name == "ade20k_sem_seg_val":
             gt_dir = os.path.join(_root, "ADEChallengeData2016", "annotations_detectron2", "validation")

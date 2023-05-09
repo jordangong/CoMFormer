@@ -4,14 +4,13 @@
 Modules to compute the matching cost and solve the corresponding LSAP.
 """
 import torch
-import torch.nn.functional as F
+from detectron2.projects.point_rend.point_features import point_sample
 from scipy.optimize import linear_sum_assignment
 from torch import nn
 from torch.cuda.amp import autocast
 
-from detectron2.projects.point_rend.point_features import point_sample
 from .mask_losses import batch_dice_loss_jit, batch_sigmoid_ce_loss_jit, \
-    batch_soft_dice_loss_jit, batch_soft_ce_loss_jit
+    batch_soft_dice_loss_jit
 
 
 class HungarianMatcher(nn.Module):
@@ -48,7 +47,6 @@ class HungarianMatcher(nn.Module):
 
         # Iterate through batch size
         for b in range(bs):
-
             out_prob = outputs["pred_logits"][b].softmax(-1)  # [num_queries, num_classes]
             tgt_ids = targets[b]["labels"]
 
@@ -86,12 +84,12 @@ class HungarianMatcher(nn.Module):
 
                 # Compute the dice loss betwen masks
                 cost_dice = batch_dice_loss_jit(out_mask, tgt_mask)
-            
+
             # Final cost matrix
             C = (
-                self.cost_mask * cost_mask
-                + self.cost_class * cost_class
-                + self.cost_dice * cost_dice
+                    self.cost_mask * cost_mask
+                    + self.cost_class * cost_class
+                    + self.cost_dice * cost_dice
             )
             C = C.reshape(num_queries, -1).cpu()
 
@@ -193,7 +191,7 @@ class SoftmaxMatcher(HungarianMatcher):
                 # cost_mask = batch_soft_ce_loss_jit(log_out_mask, tgt_mask)
 
             # cost class in [0,1], cost dice in [0,1] -> 0 is worst!
-            C = - 2*(cost_class * cost_dice) / (cost_class + cost_dice)
+            C = - 2 * (cost_class * cost_dice) / (cost_class + cost_dice)
             C = C.reshape(num_queries, -1).cpu()
 
             indices.append(linear_sum_assignment(C))

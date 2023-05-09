@@ -4,14 +4,12 @@
 import glob
 import json
 import os
-from collections import Counter
 
 import numpy as np
-import tqdm
-from panopticapi.utils import IdGenerator, save_json
-from PIL import Image
 import pycocotools.mask as mask_util
-
+import tqdm
+from PIL import Image
+from panopticapi.utils import save_json
 
 if __name__ == "__main__":
     dataset_dir = os.getenv("DETECTRON2_DATASETS", "datasets")

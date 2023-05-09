@@ -4,12 +4,11 @@
 import glob
 import json
 import os
-from collections import Counter
 
 import numpy as np
 import tqdm
-from panopticapi.utils import IdGenerator, save_json
 from PIL import Image
+from panopticapi.utils import IdGenerator, save_json
 
 ADE20K_SEM_SEG_CATEGORIES = [
     "void",
@@ -319,7 +318,6 @@ PALETTE = [
     [92, 0, 255],
 ]
 
-
 if __name__ == "__main__":
     dataset_dir = os.getenv("DETECTRON2_DATASETS", "datasets")
 
@@ -353,7 +351,7 @@ if __name__ == "__main__":
                     continue
                 ins_id, sem_id, _ = line.strip().split()
                 # ignore_label becomes 255
-                map_id[int(ins_id)] = int(sem_id) # Removed -1 to start from zero
+                map_id[int(ins_id)] = int(sem_id)  # Removed -1 to start from zero
 
         ADE20K_150_CATEGORIES = []
         for cat_id, cat_name in enumerate(ADE20K_SEM_SEG_CATEGORIES):

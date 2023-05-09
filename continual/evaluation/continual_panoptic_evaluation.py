@@ -4,19 +4,18 @@ import io
 import itertools
 import json
 import logging
-import numpy as np
 import os
 import tempfile
 from collections import OrderedDict
 from typing import Optional
-from PIL import Image
-from tabulate import tabulate
 
+import numpy as np
+from PIL import Image
 from detectron2.data import MetadataCatalog
+from detectron2.evaluation.evaluator import DatasetEvaluator
 from detectron2.utils import comm
 from detectron2.utils.file_io import PathManager
-
-from detectron2.evaluation.evaluator import DatasetEvaluator
+from tabulate import tabulate
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +84,7 @@ class ContinualCOCOPanopticEvaluator(DatasetEvaluator):
                         continue
                     pred_class = panoptic_label // label_divisor
                     isthing = (
-                        pred_class in self._metadata.thing_dataset_id_to_contiguous_id.values()
+                            pred_class in self._metadata.thing_dataset_id_to_contiguous_id.values()
                     )
                     segments_info.append(
                         {

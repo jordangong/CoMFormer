@@ -36,4 +36,3 @@ def add_continual_config(cfg):
     cfg.CONT.DIST.MASK_KD = 0.
     # cfg.CONT.DIST.SANITY = 1.
     # cfg.CONT.DIST.WEIGHT_MASK = 1.
-

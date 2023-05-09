@@ -3,11 +3,13 @@
 # Modified by Bowen Cheng from https://github.com/facebookresearch/detectron2/blob/main/tools/analyze_model.py
 
 import logging
-import numpy as np
+# fmt: off
+import os
+import sys
 from collections import Counter
-import tqdm
-from fvcore.nn import flop_count_table  # can also try flop_count_str
 
+import numpy as np
+import tqdm
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import CfgNode, LazyConfig, get_cfg, instantiate
 from detectron2.data import build_detection_test_loader
@@ -20,10 +22,8 @@ from detectron2.utils.analysis import (
     parameter_count_table,
 )
 from detectron2.utils.logger import setup_logger
+from fvcore.nn import flop_count_table  # can also try flop_count_str
 
-# fmt: off
-import os
-import sys
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 # fmt: on
 
@@ -155,7 +155,7 @@ $ ./analyze_model.py --num-inputs 100 --tasks flop \\
         default=100,
         type=int,
         help="number of inputs used to compute statistics for flops/activations, "
-        "both are data dependent.",
+             "both are data dependent.",
     )
     parser.add_argument(
         "--use-fixed-input-size",

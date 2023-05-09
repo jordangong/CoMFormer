@@ -1,7 +1,7 @@
-from torch import nn
 import torch
-from torch.nn import functional as F
 from detectron2.engine.hooks import HookBase
+from torch import nn
+from torch.nn import functional as F
 
 
 class WA_Hook(HookBase):
@@ -55,5 +55,6 @@ class CosineClassifier(nn.Module):
         out = []
         for mod in self.cls[1:]:
             out.append(self.scaler * F.linear(x, F.normalize(mod.weight, dim=1, p=2)))
-        out.append(self.scaler * F.linear(x, F.normalize(self.cls[0].weight, dim=1, p=2)))  # put as last the void class
+        out.append(
+            self.scaler * F.linear(x, F.normalize(self.cls[0].weight, dim=1, p=2)))  # put as last the void class
         return torch.cat(out, dim=2)

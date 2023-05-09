@@ -3,16 +3,16 @@ MODEL:
     FREEZE_AT: 0
     NAME: "build_resnet_backbone"
   WEIGHTS: "detectron2://ImageNetPretrained/torchvision/R-50.pkl"
-  PIXEL_MEAN: [123.675, 116.280, 103.530]
-  PIXEL_STD: [58.395, 57.120, 57.375]
+  PIXEL_MEAN: [ 123.675, 116.280, 103.530 ]
+  PIXEL_STD: [ 58.395, 57.120, 57.375 ]
   RESNETS:
     DEPTH: 50
     STEM_TYPE: "basic"  # not used
     STEM_OUT_CHANNELS: 64
     STRIDE_IN_1X1: False
-    OUT_FEATURES: ["res2", "res3", "res4", "res5"]
+    OUT_FEATURES: [ "res2", "res3", "res4", "res5" ]
     # NORM: "SyncBN"
-    RES5_MULTI_GRID: [1, 1, 1]  # not used
+    RES5_MULTI_GRID: [ 1, 1, 1 ]  # not used
 DATASETS:
   TRAIN: ("ade20k_instance_train",)
   TEST: ("ade20k_instance_val",)
@@ -34,7 +34,7 @@ SOLVER:
   AMP:
     ENABLED: True
 INPUT:
-  MIN_SIZE_TRAIN: !!python/object/apply:eval ["[int(x * 0.1 * 640) for x in range(5, 21)]"]
+  MIN_SIZE_TRAIN: !!python/object/apply:eval [ "[int(x * 0.1 * 640) for x in range(5, 21)]" ]
   MIN_SIZE_TRAIN_SAMPLING: "choice"
   MIN_SIZE_TEST: 640
   MAX_SIZE_TRAIN: 2560
@@ -52,7 +52,7 @@ TEST:
   EVAL_PERIOD: 5000
   AUG:
     ENABLED: False
-    MIN_SIZES: [320, 480, 640, 800, 960, 1120]
+    MIN_SIZES: [ 320, 480, 640, 800, 960, 1120 ]
     MAX_SIZE: 4480
     FLIP: True
 DATALOADER:

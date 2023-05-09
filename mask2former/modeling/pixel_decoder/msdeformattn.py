@@ -1,22 +1,20 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
-import logging
-import numpy as np
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import fvcore.nn.weight_init as weight_init
+import numpy as np
 import torch
-from torch import nn
-from torch.nn import functional as F
-from torch.nn.init import xavier_uniform_, constant_, uniform_, normal_
-from torch.cuda.amp import autocast
-
 from detectron2.config import configurable
 from detectron2.layers import Conv2d, ShapeSpec, get_norm
 from detectron2.modeling import SEM_SEG_HEADS_REGISTRY
+from torch import nn
+from torch.cuda.amp import autocast
+from torch.nn import functional as F
+from torch.nn.init import normal_
 
+from .ops.modules import MSDeformAttn
 from ..transformer_decoder.position_encoding import PositionEmbeddingSine
 from ..transformer_decoder.transformer import _get_clones, _get_activation_fn
-from .ops.modules import MSDeformAttn
 
 
 # MSDeformAttn Transformer encoder in deformable detr
@@ -25,7 +23,7 @@ class MSDeformAttnTransformerEncoderOnly(nn.Module):
                  num_encoder_layers=6, dim_feedforward=1024, dropout=0.1,
                  activation="relu",
                  num_feature_levels=4, enc_n_points=4,
-        ):
+                 ):
         super().__init__()
 
         self.d_model = d_model
@@ -80,11 +78,12 @@ class MSDeformAttnTransformerEncoderOnly(nn.Module):
         mask_flatten = torch.cat(mask_flatten, 1)
         lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1)
         spatial_shapes = torch.as_tensor(spatial_shapes, dtype=torch.long, device=src_flatten.device)
-        level_start_index = torch.cat((spatial_shapes.new_zeros((1, )), spatial_shapes.prod(1).cumsum(0)[:-1]))
+        level_start_index = torch.cat((spatial_shapes.new_zeros((1,)), spatial_shapes.prod(1).cumsum(0)[:-1]))
         valid_ratios = torch.stack([self.get_valid_ratio(m) for m in masks], 1)
 
         # encoder
-        memory = self.encoder(src_flatten, spatial_shapes, level_start_index, valid_ratios, lvl_pos_embed_flatten, mask_flatten)
+        memory = self.encoder(src_flatten, spatial_shapes, level_start_index, valid_ratios, lvl_pos_embed_flatten,
+                              mask_flatten)
 
         return memory, spatial_shapes, level_start_index
 
@@ -121,7 +120,8 @@ class MSDeformAttnTransformerEncoderLayer(nn.Module):
 
     def forward(self, src, pos, reference_points, spatial_shapes, level_start_index, padding_mask=None):
         # self attention
-        src2 = self.self_attn(self.with_pos_embed(src, pos), reference_points, src, spatial_shapes, level_start_index, padding_mask)
+        src2 = self.self_attn(self.with_pos_embed(src, pos), reference_points, src, spatial_shapes, level_start_index,
+                              padding_mask)
         src = src + self.dropout1(src2)
         src = self.norm1(src)
 
@@ -141,7 +141,6 @@ class MSDeformAttnTransformerEncoder(nn.Module):
     def get_reference_points(spatial_shapes, valid_ratios, device):
         reference_points_list = []
         for lvl, (H_, W_) in enumerate(spatial_shapes):
-
             ref_y, ref_x = torch.meshgrid(torch.linspace(0.5, H_ - 0.5, H_, dtype=torch.float32, device=device),
                                           torch.linspace(0.5, W_ - 0.5, W_, dtype=torch.float32, device=device))
             ref_y = ref_y.reshape(-1)[None] / (valid_ratios[:, None, lvl, 1] * H_)
@@ -165,19 +164,19 @@ class MSDeformAttnTransformerEncoder(nn.Module):
 class MSDeformAttnPixelDecoder(nn.Module):
     @configurable
     def __init__(
-        self,
-        input_shape: Dict[str, ShapeSpec],
-        *,
-        transformer_dropout: float,
-        transformer_nheads: int,
-        transformer_dim_feedforward: int,
-        transformer_enc_layers: int,
-        conv_dim: int,
-        mask_dim: int,
-        norm: Optional[Union[str, Callable]] = None,
-        # deformable transformer encoder args
-        transformer_in_features: List[str],
-        common_stride: int,
+            self,
+            input_shape: Dict[str, ShapeSpec],
+            *,
+            transformer_dropout: float,
+            transformer_nheads: int,
+            transformer_dim_feedforward: int,
+            transformer_enc_layers: int,
+            conv_dim: int,
+            mask_dim: int,
+            norm: Optional[Union[str, Callable]] = None,
+            # deformable transformer encoder args
+            transformer_in_features: List[str],
+            common_stride: int,
     ):
         """
         NOTE: this interface is experimental.
@@ -201,7 +200,7 @@ class MSDeformAttnPixelDecoder(nn.Module):
         self.in_features = [k for k, v in input_shape]  # starting from "res2" to "res5"
         self.feature_strides = [v.stride for k, v in input_shape]
         self.feature_channels = [v.channels for k, v in input_shape]
-        
+
         # this is the input shape of transformer encoder (could use less features than pixel decoder
         transformer_input_shape = sorted(transformer_input_shape.items(), key=lambda x: x[1].stride)
         self.transformer_in_features = [k for k, v in transformer_input_shape]  # starting from "res2" to "res5"
@@ -250,7 +249,7 @@ class MSDeformAttnPixelDecoder(nn.Module):
             padding=0,
         )
         weight_init.c2_xavier_fill(self.mask_features)
-        
+
         self.maskformer_num_feature_levels = 3  # always use 3 scales
         self.common_stride = common_stride
 

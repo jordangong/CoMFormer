@@ -3,21 +3,19 @@
 """
 MaskFormer criterion.
 """
-import logging
 
 import torch
 import torch.nn.functional as F
-from torch import nn
-
-from detectron2.utils.comm import get_world_size
 from detectron2.projects.point_rend.point_features import (
     get_uncertain_point_coords_with_randomness,
     point_sample,
 )
+from detectron2.utils.comm import get_world_size
+from torch import nn
 
+from .mask_losses import dice_loss_jit, sigmoid_ce_loss_jit, softmax_dice_loss_jit, softmax_ce_loss_jit
 from .matcher import HungarianMatcher, SoftmaxMatcher
 from ..utils.misc import is_dist_avail_and_initialized, nested_tensor_from_tensor_list
-from .mask_losses import dice_loss_jit, sigmoid_ce_loss_jit, softmax_dice_loss_jit, softmax_ce_loss_jit
 
 
 def focal_loss(inputs, targets, alpha=10, gamma=2, reduction='mean', ignore_index=255):
@@ -156,7 +154,7 @@ class SetCriterion(nn.Module):
             loss_ce = F.cross_entropy(src_logits.transpose(1, 2), target_classes, self.empty_weight)
         losses = {"loss_ce": loss_ce}
         return losses
-    
+
     def loss_masks(self, outputs, targets, indices, num_masks):
         """Compute the losses related to the masks: the focal loss and the dice loss.
         targets dicts must contain the key "masks" containing a tensor of dim [nb_target_boxes, h, w]
@@ -313,7 +311,7 @@ class SoftmaxCriterion(SetCriterion):
             # sample point_coords
             point_coords = get_uncertain_point_coords_with_randomness(
                 src_masks,
-                lambda logits: calculate_uncertainty(2*logits-1),  # normalize to zero
+                lambda logits: calculate_uncertainty(2 * logits - 1),  # normalize to zero
                 self.num_points,
                 self.oversample_ratio,
                 self.importance_sample_ratio,

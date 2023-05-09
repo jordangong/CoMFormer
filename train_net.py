@@ -8,6 +8,7 @@ try:
     # ignore ShapelyDeprecationWarning from fvcore
     from shapely.errors import ShapelyDeprecationWarning
     import warnings
+
     warnings.filterwarnings('ignore', category=ShapelyDeprecationWarning)
 except:
     pass
@@ -15,15 +16,13 @@ except:
 import copy
 import itertools
 import logging
-import wandb
 import os
-
 from collections import OrderedDict
 from typing import Any, Dict, List, Set
 
-import torch
-
 import detectron2.utils.comm as comm
+import torch
+import wandb
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import get_cfg
 from detectron2.data import MetadataCatalog, build_detection_train_loader
@@ -37,7 +36,6 @@ from detectron2.evaluation import (
     CityscapesInstanceEvaluator,
     CityscapesSemSegEvaluator,
     COCOEvaluator,
-    COCOPanopticEvaluator,
     DatasetEvaluators,
     LVISEvaluator,
     SemSegEvaluator,
@@ -47,6 +45,7 @@ from detectron2.projects.deeplab import add_deeplab_config, build_lr_scheduler
 from detectron2.solver.build import maybe_add_gradient_clipping
 from detectron2.utils.logger import setup_logger
 
+from continual.evaluation import ContinualCOCOPanopticEvaluator
 # MaskFormer
 from mask2former import (
     COCOInstanceNewBaselineDatasetMapper,
@@ -58,7 +57,6 @@ from mask2former import (
     SemanticSegmentorWithTTA,
     add_maskformer2_config,
 )
-from continual.evaluation import ContinualSemSegEvaluator, ContinualCOCOPanopticEvaluator
 
 
 class Trainer(DefaultTrainer):
@@ -80,7 +78,7 @@ class Trainer(DefaultTrainer):
         evaluator_list = []
         evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
         # semantic segmentation
-        if evaluator_type in ["sem_seg"]: #, "ade20k_panoptic_seg"]:
+        if evaluator_type in ["sem_seg"]:  # , "ade20k_panoptic_seg"]:
             evaluator_list.append(
                 SemSegEvaluator(
                     dataset_name,
@@ -113,23 +111,23 @@ class Trainer(DefaultTrainer):
         # Cityscapes
         if evaluator_type == "cityscapes_instance":
             assert (
-                torch.cuda.device_count() > comm.get_rank()
+                    torch.cuda.device_count() > comm.get_rank()
             ), "CityscapesEvaluator currently do not work with multiple machines."
             return CityscapesInstanceEvaluator(dataset_name)
         if evaluator_type == "cityscapes_sem_seg":
             assert (
-                torch.cuda.device_count() > comm.get_rank()
+                    torch.cuda.device_count() > comm.get_rank()
             ), "CityscapesEvaluator currently do not work with multiple machines."
             return CityscapesSemSegEvaluator(dataset_name)
         if evaluator_type == "cityscapes_panoptic_seg":
             if cfg.MODEL.MASK_FORMER.TEST.SEMANTIC_ON:
                 assert (
-                    torch.cuda.device_count() > comm.get_rank()
+                        torch.cuda.device_count() > comm.get_rank()
                 ), "CityscapesEvaluator currently do not work with multiple machines."
                 evaluator_list.append(CityscapesSemSegEvaluator(dataset_name))
             if cfg.MODEL.MASK_FORMER.TEST.INSTANCE_ON:
                 assert (
-                    torch.cuda.device_count() > comm.get_rank()
+                        torch.cuda.device_count() > comm.get_rank()
                 ), "CityscapesEvaluator currently do not work with multiple machines."
                 evaluator_list.append(CityscapesInstanceEvaluator(dataset_name))
         # ADE20K
@@ -219,8 +217,8 @@ class Trainer(DefaultTrainer):
                 if "backbone" in module_name:
                     hyperparams["lr"] = hyperparams["lr"] * cfg.SOLVER.BACKBONE_MULTIPLIER
                 if (
-                    "relative_position_bias_table" in module_param_name
-                    or "absolute_pos_embed" in module_param_name
+                        "relative_position_bias_table" in module_param_name
+                        or "absolute_pos_embed" in module_param_name
                 ):
                     print(module_param_name)
                     hyperparams["weight_decay"] = 0.0
@@ -234,9 +232,9 @@ class Trainer(DefaultTrainer):
             # detectron2 doesn't have full model gradient clipping now
             clip_norm_val = cfg.SOLVER.CLIP_GRADIENTS.CLIP_VALUE
             enable = (
-                cfg.SOLVER.CLIP_GRADIENTS.ENABLED
-                and cfg.SOLVER.CLIP_GRADIENTS.CLIP_TYPE == "full_model"
-                and clip_norm_val > 0.0
+                    cfg.SOLVER.CLIP_GRADIENTS.ENABLED
+                    and cfg.SOLVER.CLIP_GRADIENTS.CLIP_TYPE == "full_model"
+                    and clip_norm_val > 0.0
             )
 
             class FullModelGradientClippingOptimizer(optim):
@@ -305,8 +303,9 @@ def setup(args):
     elif cfg.MODEL.MASK_FORMER.TEST.INSTANCE_ON:
         tags.append('instance')
     if comm.get_rank() == 0:
-        wandb.init(project="ContM2F", entity="fcdl94", name=cfg.NAME, tags=tags,
-                   config=cfg, sync_tensorboard=True, group=f"{cfg.DATASETS.TRAIN[0][:3]}-full", settings=wandb.Settings(start_method="fork"))
+        wandb.init(project="ContM2F", name=cfg.NAME, tags=tags,
+                   config=cfg, sync_tensorboard=True, group=f"{cfg.DATASETS.TRAIN[0][:3]}-full",
+                   settings=wandb.Settings(start_method="fork"))
 
     return cfg
 
