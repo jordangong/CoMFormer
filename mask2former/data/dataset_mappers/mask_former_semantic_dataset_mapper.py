@@ -1,15 +1,13 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
-import copy
 import logging
 
-import numpy as np
 import torch
 from detectron2.config import configurable
 from detectron2.data import MetadataCatalog
 from detectron2.data import detection_utils as utils
 from detectron2.data import transforms as T
 from detectron2.projects.point_rend import ColorAugSSDTransform
-from detectron2.structures import BitMasks, Instances
+from detectron2.structures import Instances
 from torch.nn import functional as F
 
 __all__ = ["MaskFormerSemanticDatasetMapper"]
@@ -107,22 +105,24 @@ class MaskFormerSemanticDatasetMapper:
             dict: a format that builtin models in detectron2 accept
         """
         assert self.is_train, "MaskFormerSemanticDatasetMapper should only be used for training!"
+        assert "annotations" not in dataset_dict, ValueError(
+            "Semantic segmentation dataset should not have 'annotations'.")
 
-        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-        image = utils.read_image(dataset_dict["file_name"], format=self.img_format)
-        utils.check_image_size(dataset_dict, image)
+        dataset_dict = dataset_dict.copy()  # it will be modified by code below
+        if image_file_name := dataset_dict.pop("file_name", None):
+            image = utils.read_image(image_file_name, format=self.img_format)
+            utils.check_image_size(dataset_dict, image)
 
-        if "sem_seg_file_name" in dataset_dict:
-            # PyTorch transformation not implemented for uint16, so converting it to double first
-            sem_seg_gt = utils.read_image(dataset_dict.pop("sem_seg_file_name")).astype("double")
-        else:
-            sem_seg_gt = None
-
-        if sem_seg_gt is None:
-            raise ValueError(
-                "Cannot find 'sem_seg_file_name' for semantic segmentation dataset {}.".format(
-                    dataset_dict["file_name"]
+            if sem_seg_file_name := dataset_dict.pop("sem_seg_file_name", None):
+                # PyTorch transformation not implemented for uint16, so converting it to double first
+                sem_seg_gt = utils.read_image(sem_seg_file_name).astype("double")
+            else:
+                raise ValueError(
+                    f"Cannot find 'sem_seg_file_name' for image {image_file_name}."
                 )
+        else:
+            raise ValueError(
+                f"Cannot find image {image_file_name}."
             )
 
         aug_input = T.AugInput(image, sem_seg=sem_seg_gt)
@@ -131,59 +131,36 @@ class MaskFormerSemanticDatasetMapper:
         sem_seg_gt = aug_input.sem_seg
 
         # Pad image and segmentation label here!
-        image = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
-        if sem_seg_gt is not None:
-            sem_seg_gt = torch.as_tensor(sem_seg_gt.astype("long"))
+        image = torch.from_numpy(image.transpose(2, 0, 1).copy())
+        sem_seg_gt = torch.from_numpy(sem_seg_gt.astype("int64"))
 
         if self.size_divisibility > 0:
-            image_size = (image.shape[-2], image.shape[-1])
+            _, height, width = image.size()
             padding_size = [
                 0,
-                self.size_divisibility - image_size[1],
+                self.size_divisibility - width,
                 0,
-                self.size_divisibility - image_size[0],
+                self.size_divisibility - height,
             ]
             image = F.pad(image, padding_size, value=128).contiguous()
-            if sem_seg_gt is not None:
-                sem_seg_gt = F.pad(sem_seg_gt, padding_size, value=self.ignore_label).contiguous()
+            sem_seg_gt = F.pad(sem_seg_gt, padding_size, value=self.ignore_label).contiguous()
 
-        image_shape = (image.shape[-2], image.shape[-1])  # h, w
-
-        # Pytorch's dataloader is efficient on torch.Tensor due to shared-memory,
-        # but not efficient on large generic data structures due to the use of pickle & mp.Queue.
-        # Therefore it's important to use torch.Tensor.
         dataset_dict["image"] = image
-
-        if sem_seg_gt is not None:
-            dataset_dict["sem_seg"] = sem_seg_gt.long()
-
-        if "annotations" in dataset_dict:
-            raise ValueError("Semantic segmentation dataset should not have 'annotations'.")
+        dataset_dict["sem_seg"] = sem_seg_gt
 
         # Prepare per-category binary masks
-        if sem_seg_gt is not None:
-            sem_seg_gt = sem_seg_gt.numpy()
-            instances = Instances(image_shape)
-            classes = np.unique(sem_seg_gt)
-            # remove ignored region
-            classes = classes[classes != self.ignore_label]
-            if self.remove_bkg:
-                classes = classes[classes != 0]
-            instances.gt_classes = torch.tensor(classes, dtype=torch.int64)
+        _, *image_size = image.size()
+        classes = sem_seg_gt.unique()
+        # remove ignored region
+        classes = classes[classes != self.ignore_label]
+        if self.remove_bkg:
+            classes = classes[classes != 0]
+        if len(classes) == 0:
+            masks = torch.zeros(0, *image_size, dtype=torch.bool)
+        else:
+            masks = sem_seg_gt == classes[:, None, None]
 
-            masks = []
-            for class_id in classes:
-                masks.append(sem_seg_gt == class_id)
-
-            if len(masks) == 0:
-                # Some image does not have annotation (all ignored)
-                instances.gt_masks = torch.zeros((0, sem_seg_gt.shape[-2], sem_seg_gt.shape[-1]))
-            else:
-                masks = BitMasks(
-                    torch.stack([torch.from_numpy(np.ascontiguousarray(x.copy())) for x in masks])
-                )
-                instances.gt_masks = masks.tensor
-
-            dataset_dict["instances"] = instances
+        instances = Instances(image_size, gt_classes=classes, gt_masks=masks)
+        dataset_dict["instances"] = instances
 
         return dataset_dict

@@ -4,6 +4,7 @@ MaskFormer Training Script.
 
 This script is a simplified version of the training script in detectron2/tools.
 """
+
 try:
     # ignore ShapelyDeprecationWarning from fvcore
     from shapely.errors import ShapelyDeprecationWarning
@@ -46,6 +47,16 @@ from detectron2.solver.build import maybe_add_gradient_clipping
 from detectron2.utils.logger import setup_logger
 
 from continual.evaluation import ContinualCOCOPanopticEvaluator
+
+try:
+    from torch.utils.data._utils.collate import default_collate_fn_map, default_collate
+    from detectron2.structures import Instances
+    from mask2former.utils.collect import collate_instances_fn
+
+    default_collate_fn_map.update({Instances: collate_instances_fn})
+except:
+    from mask2former.utils.collect import default_collate
+
 # MaskFormer
 from mask2former import (
     COCOInstanceNewBaselineDatasetMapper,
@@ -78,7 +89,7 @@ class Trainer(DefaultTrainer):
         evaluator_list = []
         evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
         # semantic segmentation
-        if evaluator_type in ["sem_seg"]:  # , "ade20k_panoptic_seg"]:
+        if evaluator_type in ["sem_seg", "ade20k_panoptic_seg"]:
             evaluator_list.append(
                 SemSegEvaluator(
                     dataset_name,
@@ -148,34 +159,37 @@ class Trainer(DefaultTrainer):
 
     @classmethod
     def build_train_loader(cls, cfg):
+        # Use optimized collate function for MaskFormer
+        if cfg.MODEL.META_ARCHITECTURE == "MaskFormer":
+            collate_fn = default_collate
+        else:
+            collate_fn = None
+
         # Semantic segmentation dataset mapper
         if cfg.INPUT.DATASET_MAPPER_NAME == "mask_former_semantic":
             mapper = MaskFormerSemanticDatasetMapper(cfg, True)
-            return build_detection_train_loader(cfg, mapper=mapper)
         # Panoptic segmentation dataset mapper
         elif cfg.INPUT.DATASET_MAPPER_NAME == "mask_former_panoptic":
             mapper = MaskFormerPanopticDatasetMapper(cfg, True)
-            return build_detection_train_loader(cfg, mapper=mapper)
         # Instance segmentation dataset mapper
         elif cfg.INPUT.DATASET_MAPPER_NAME == "mask_former_instance":
             mapper = MaskFormerInstanceDatasetMapper(cfg, True)
-            return build_detection_train_loader(cfg, mapper=mapper)
         # coco instance segmentation lsj new baseline
         elif cfg.INPUT.DATASET_MAPPER_NAME == "coco_instance_lsj":
             mapper = COCOInstanceNewBaselineDatasetMapper(cfg, True)
-            return build_detection_train_loader(cfg, mapper=mapper)
         # coco panoptic segmentation lsj new baseline
         elif cfg.INPUT.DATASET_MAPPER_NAME == "coco_panoptic_lsj":
             mapper = COCOPanopticNewBaselineDatasetMapper(cfg, True)
-            return build_detection_train_loader(cfg, mapper=mapper)
         else:
             mapper = None
-            return build_detection_train_loader(cfg, mapper=mapper)
+
+        return build_detection_train_loader(cfg, mapper=mapper, collate_fn=collate_fn)
 
     @classmethod
     def build_lr_scheduler(cls, cfg, optimizer):
         """
-        It now calls :func:`detectron2.projects.deeplab.build_lr_scheduler`.
+        It now calls :func:`detectron2.solver.build_lr_scheduler`.
+        Overwrite it if you'd like a different scheduler.
         """
         return build_lr_scheduler(cfg, optimizer)
 
@@ -294,8 +308,8 @@ def setup(args):
 
     cfg.freeze()
     default_setup(cfg, args)
-    # Setup logger for "mask_former" module
 
+    # Setup logger for "mask_former" module
     setup_logger(output=cfg.OUTPUT_DIR, distributed_rank=comm.get_rank(), name="mask2former")
     tags = []
     if cfg.MODEL.MASK_FORMER.TEST.PANOPTIC_ON:

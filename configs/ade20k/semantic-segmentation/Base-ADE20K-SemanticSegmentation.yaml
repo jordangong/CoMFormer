@@ -57,8 +57,9 @@ TEST:
     MAX_SIZE: 3584
     FLIP: True
 DATALOADER:
+  ASPECT_RATIO_GROUPING: False
   FILTER_EMPTY_ANNOTATIONS: True
-  NUM_WORKERS: 8
+  NUM_WORKERS: 4
 VERSION: 2
 CONT:
   ORDER: !!python/object/apply:eval [ "[x for x in range(1, 151)]" ]

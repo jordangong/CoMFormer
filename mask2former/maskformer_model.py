@@ -83,7 +83,7 @@ class MaskFormer(nn.Module):
         self.metadata = metadata
         if size_divisibility < 0:
             # use backbone size_divisibility if not set
-            size_divisibility = self.backbone.size_divisibility
+            size_divisibility = backbone.size_divisibility
         self.size_divisibility = size_divisibility
         self.sem_seg_postprocess_before_inference = sem_seg_postprocess_before_inference
         self.register_buffer("pixel_mean", torch.Tensor(pixel_mean).view(-1, 1, 1), False)
@@ -154,95 +154,33 @@ class MaskFormer(nn.Module):
     def device(self):
         return self.pixel_mean.device
 
-    def forward_train_mask(self, images, batched_inputs, outputs):
+    def forward_train_mask(self, outputs, instances):
         # mask classification target
-        if "instances" in batched_inputs[0]:
-            gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
-            targets = MaskFormer.prepare_targets(gt_instances, images.tensor.shape[-2:], per_pixel=self.per_pixel)
-            # fixme: Assume, for semantic and panoptic, that dataset has background class
-            if not self.mask_bg and (self.semantic_on or self.panoptic_on):
-                for tar in targets:
-                    tar['labels'] -= 1
-        else:
-            targets = None
-
+        gt_instances = [x.to(self.device) for x in instances]
+        if not self.mask_bg and (self.semantic_on or self.panoptic_on):
+            for x in gt_instances:
+                x.gt_classes -= 1
         # bipartite matching-based loss
-        losses = self.criterion(outputs, targets)
+        losses = self.criterion(outputs, gt_instances)
 
-        for k in list(losses.keys()):
-            if k in self.criterion.weight_dict:
-                losses[k] *= self.criterion.weight_dict[k]
-            else:
-                # remove this loss if not specified in `weight_dict`
-                losses.pop(k)
         return losses
 
-    def forward_train_pixel(self, images, batched_inputs, outputs):
-        losses = {}
-        if "sem_seg" in batched_inputs[0]:
-            targets = [x["sem_seg"].to(self.device) for x in batched_inputs]
-            targets = MaskFormer.prepare_targets(targets, images.tensor.shape[-2:], per_pixel=self.per_pixel)
-            targets = torch.cat(targets, dim=0)
-            outputs_x = MaskFormer.prepare_semantic_train(outputs, targets, mask_bg=self.mask_bg)
-            # downsample targets to reduce GPU memory consumption - performance are close.
-            # This may introduce issues when having more than 255 classes. In that case, convert to float.
-            targets = F.interpolate(targets.unsqueeze(0).byte(), size=outputs_x.shape[-2:], mode="nearest")[0].long()
-            losses["loss_ce"] = self.criterion(outputs_x, targets)
-            if "aux_outputs" in outputs:
-                for i, aux_outputs in enumerate(outputs["aux_outputs"]):
-                    outputs_x = MaskFormer.prepare_semantic_train(aux_outputs, targets, mask_bg=self.mask_bg)
-                    losses["loss_ce" + f"_{i}"] = self.criterion(outputs_x, targets)
+    def forward_train_pixel(self, outputs, sem_seg):
+        targets = sem_seg.to(self.device)
+        class_logits, mask_logits = outputs["pred_logits"], outputs["pred_masks"]
+        mask = mask_logits.sigmoid()
+        logits = torch.einsum("bqc,bqhw->bchw", class_logits, mask)
+        logits = logits[:, :-1]  # Exclude no class since we have Bkg class
+        # downsample targets to reduce GPU memory consumption - performance are close.
+        # This may introduce issues when having more than 255 classes. In that case, convert to float.
+        targets = F.interpolate(
+            targets.unsqueeze(0).byte(),
+            size=logits.shape[-2:],
+            mode="nearest"
+        )[0].long()
+        losses = self.criterion(logits, targets)
+
         return losses
-
-    def forward_inference(self, images, batched_inputs, outputs):
-        mask_cls_results = outputs["pred_logits"]
-        mask_pred_results = outputs["pred_masks"] if self.softmask else outputs["pred_masks"]
-        # upsample masks
-        mask_pred_results = F.interpolate(
-            mask_pred_results,
-            size=(images.tensor.shape[-2], images.tensor.shape[-1]),
-            mode="bilinear",
-            align_corners=False,
-        )
-
-        del outputs
-
-        processed_results = []
-        for mask_cls_result, mask_pred_result, input_per_image, image_size in zip(
-                mask_cls_results, mask_pred_results, batched_inputs, images.image_sizes
-        ):
-            if 'sem_seg' in input_per_image and self.continual and self.semantic_on:
-                height, width = input_per_image['sem_seg'].shape
-            else:
-                height = input_per_image.get("height", image_size[0])  # image_size[0]
-                width = input_per_image.get("width", image_size[1])  # image_size[1]
-            processed_results.append({})
-
-            if self.sem_seg_postprocess_before_inference:
-                # That's interpolation to image size
-                mask_pred_result = retry_if_cuda_oom(sem_seg_postprocess)(
-                    mask_pred_result, image_size, height, width
-                )
-                mask_cls_result = mask_cls_result.to(mask_pred_result)
-
-            # semantic segmentation inference
-            if self.semantic_on:
-                r = retry_if_cuda_oom(self.semantic_inference)(mask_cls_result, mask_pred_result)
-                if not self.sem_seg_postprocess_before_inference:
-                    r = retry_if_cuda_oom(sem_seg_postprocess)(r, image_size, height, width)
-                processed_results[-1]["sem_seg"] = r
-
-            # panoptic segmentation inference
-            if self.panoptic_on:
-                panoptic_r = retry_if_cuda_oom(self.panoptic_inference)(mask_cls_result, mask_pred_result)
-                processed_results[-1]["panoptic_seg"] = panoptic_r
-
-            # instance segmentation inference
-            if self.instance_on:
-                instance_r = retry_if_cuda_oom(self.instance_inference)(mask_cls_result, mask_pred_result)
-                processed_results[-1]["instances"] = instance_r
-
-        return processed_results
 
     def forward(self, batched_inputs):
         """
@@ -270,63 +208,81 @@ class MaskFormer(nn.Module):
                     segments_info (list[dict]): Describe each segment in `panoptic_seg`.
                         Each dict contains keys "id", "category_id", "isthing".
         """
-        images = [x["image"].to(self.device) for x in batched_inputs]
-        images = [(x - self.pixel_mean) / self.pixel_std for x in images]
-        images = ImageList.from_tensors(images, self.size_divisibility)
-
-        features = self.backbone(images.tensor)
-        outputs = self.sem_seg_head(features)
-
-        if self.model_old:
-            return {"features": features, "outputs": outputs, "shape": images.tensor.shape[-2:]}
-
         if self.training:
+            images = batched_inputs["image"].to(self.device)
+            images = (images - self.pixel_mean.unsqueeze(0)) / self.pixel_std.unsqueeze(0)
+
+            features = self.backbone(images)
+            outputs = self.sem_seg_head(features)
+
+            if self.model_old:
+                return {"features": features, "outputs": outputs, "shape": images.shape[-2:]}
+
             if self.criterion is None:
-                return {"features": features, "outputs": outputs, "shape": images.tensor.shape[-2:]}
+                return {"features": features, "outputs": outputs, "shape": images.shape[-2:]}
             else:
                 if self.per_pixel:
-                    return self.forward_train_pixel(images, batched_inputs, outputs)
+                    return self.forward_train_pixel(outputs, batched_inputs["sem_seg"])
                 else:
-                    return self.forward_train_mask(images, batched_inputs, outputs)
-        else:
-            return self.forward_inference(images, batched_inputs, outputs)
+                    return self.forward_train_mask(outputs, batched_inputs["instances"])
 
-    @staticmethod
-    def prepare_targets(targets, shape, per_pixel=False):
-        h_pad, w_pad = shape
-        new_targets = []
-        if not per_pixel:
-            for targets_per_image in targets:
-                # pad gt
-                gt_masks = targets_per_image.gt_masks
-                padded_masks = torch.zeros((gt_masks.shape[0], h_pad, w_pad), dtype=gt_masks.dtype,
-                                           device=gt_masks.device)
-                padded_masks[:, : gt_masks.shape[1], : gt_masks.shape[2]] = gt_masks
-                new_targets.append(
-                    {
-                        "labels": targets_per_image.gt_classes,
-                        "masks": padded_masks,
-                    }
-                )
         else:
-            for gt_masks in targets:
-                padded_masks = torch.zeros((1, h_pad, w_pad), dtype=gt_masks.dtype, device=gt_masks.device)
-                padded_masks[:, : gt_masks.shape[0], : gt_masks.shape[1]] = gt_masks
-                new_targets.append(padded_masks)
-        return new_targets
+            images = [x["image"].to(self.device) for x in batched_inputs]
+            images = [(x - self.pixel_mean) / self.pixel_std for x in images]
+            images = ImageList.from_tensors(images, self.size_divisibility)
+            image_sizes = images.image_sizes
+            images = images.tensor
 
-    @staticmethod
-    def prepare_semantic_train(outputs, targets, mask_bg=True):
-        logits, mask = outputs["pred_logits"], outputs["pred_masks"]
-        mask = mask.sigmoid()
-        if mask_bg:
-            semseg = torch.einsum("bqc,bqhw->bchw", logits, mask)
-            semseg = semseg[:, :-1]  # Exclude no class since we have Bkg class
-        else:
-            raise NotImplementedError
-        # out_size = targets.shape[-2:]
-        # semseg = F.interpolate(semseg, size=out_size, mode="bilinear")
-        return semseg
+            features = self.backbone(images)
+            outputs = self.sem_seg_head(features)
+
+            if self.model_old:
+                return {"features": features, "outputs": outputs, "shape": images.shape[-2:]}
+
+            mask_cls_results = outputs["pred_logits"]
+            mask_pred_results = outputs["pred_masks"]
+            # upsample masks
+            mask_pred_results = F.interpolate(
+                mask_pred_results,
+                size=(images.shape[-2], images.shape[-1]),
+                mode="bilinear",
+                align_corners=False,
+            )
+
+            del outputs
+
+            processed_results = []
+            for mask_cls_result, mask_pred_result, input_per_image, image_size in zip(
+                    mask_cls_results, mask_pred_results, batched_inputs, image_sizes
+            ):
+                height = input_per_image.get("height", image_size[0])
+                width = input_per_image.get("width", image_size[1])
+                processed_results.append({})
+
+                if self.sem_seg_postprocess_before_inference:
+                    mask_pred_result = retry_if_cuda_oom(sem_seg_postprocess)(
+                        mask_pred_result, image_size, height, width
+                    )
+                    mask_cls_result = mask_cls_result.to(mask_pred_result)
+
+                # semantic segmentation inference
+                if self.semantic_on:
+                    r = retry_if_cuda_oom(self.semantic_inference)(mask_cls_result, mask_pred_result)
+                    if not self.sem_seg_postprocess_before_inference:
+                        r = retry_if_cuda_oom(sem_seg_postprocess)(r, image_size, height, width)
+                    processed_results[-1]["sem_seg"] = r
+
+                # panoptic segmentation inference
+                if self.panoptic_on:
+                    panoptic_r = retry_if_cuda_oom(self.panoptic_inference)(mask_cls_result, mask_pred_result)
+                    processed_results[-1]["panoptic_seg"] = panoptic_r
+
+                # instance segmentation inference
+                if self.instance_on:
+                    instance_r = retry_if_cuda_oom(self.instance_inference)(mask_cls_result, mask_pred_result)
+                    processed_results[-1]["instances"] = instance_r
+
+            return processed_results
 
     def semantic_inference(self, mask_cls, mask_pred):
         mask_pred = mask_pred.sigmoid() if not self.softmask else mask_pred.softmax(dim=0)

@@ -1,0 +1,5 @@
+_BASE_: maskformer2_swin_small_bs16_40k.yaml
+SOLVER:
+  MAX_ITER: 20000
+TEST:
+  EVAL_PERIOD: 2000

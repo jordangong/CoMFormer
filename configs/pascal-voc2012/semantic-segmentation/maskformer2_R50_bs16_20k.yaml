@@ -1,0 +1,5 @@
+_BASE_: maskformer2_R50_bs16_40k.yaml
+SOLVER:
+  MAX_ITER: 20000
+TEST:
+  EVAL_PERIOD: 2000

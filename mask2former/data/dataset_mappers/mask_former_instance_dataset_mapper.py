@@ -2,17 +2,19 @@
 import copy
 import logging
 
-import numpy as np
-import pycocotools.mask as mask_util
 import torch
 from detectron2.config import configurable
 from detectron2.data import detection_utils as utils
 from detectron2.data import transforms as T
 from detectron2.projects.point_rend import ColorAugSSDTransform
-from detectron2.structures import BitMasks, Instances, polygons_to_bitmask
+from detectron2.structures import Instances
 from torch.nn import functional as F
 
 __all__ = ["MaskFormerInstanceDatasetMapper"]
+
+from torch.utils.data import default_collate
+
+from mask2former.data.utils import transform_instance_annotations
 
 
 class MaskFormerInstanceDatasetMapper:
@@ -91,89 +93,66 @@ class MaskFormerInstanceDatasetMapper:
         Returns:
             dict: a format that builtin models in detectron2 accept
         """
-        assert self.is_train, "MaskFormerPanopticDatasetMapper should only be used for training!"
+        assert self.is_train, "MaskFormerInstanceDatasetMapper should only be used for training!"
 
         dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-        image = utils.read_image(dataset_dict["file_name"], format=self.img_format)
-        utils.check_image_size(dataset_dict, image)
+        if image_file_name := dataset_dict.pop("file_name", None):
+            image = utils.read_image(image_file_name, format=self.img_format)
+            utils.check_image_size(dataset_dict, image)
+        else:
+            raise ValueError(
+                f"Cannot find image {image_file_name}."
+            )
 
         aug_input = T.AugInput(image)
         aug_input, transforms = T.apply_transform_gens(self.tfm_gens, aug_input)
         image = aug_input.image
 
-        # transform instnace masks
-        assert "annotations" in dataset_dict
-        for anno in dataset_dict["annotations"]:
-            anno.pop("keypoints", None)
-
-        annos = [
-            utils.transform_instance_annotations(obj, transforms, image.shape[:2])
-            for obj in dataset_dict.pop("annotations")
-            if obj.get("iscrowd", 0) == 0
-        ]
-
-        if len(annos):
-            assert "segmentation" in annos[0]
-        segms = [obj["segmentation"] for obj in annos]
-        masks = []
-        for segm in segms:
-            if isinstance(segm, list):
-                # polygon
-                masks.append(polygons_to_bitmask(segm, *image.shape[:2]))
-            elif isinstance(segm, dict):
-                # COCO RLE
-                masks.append(mask_util.decode(segm))
-            elif isinstance(segm, np.ndarray):
-                assert segm.ndim == 2, "Expect segmentation of 2 dimensions, got {}.".format(
-                    segm.ndim
-                )
-                # mask array
-                masks.append(segm)
-            else:
-                raise ValueError(
-                    "Cannot convert segmentation of type '{}' to BitMasks!"
-                    "Supported types are: polygons as list[list[float] or ndarray],"
-                    " COCO-style RLE as a dict, or a binary segmentation mask "
-                    " in a 2D numpy array of shape HxW.".format(type(segm))
-                )
+        # transform instance masks
+        annotations_transformed = []
+        if annotations := dataset_dict.pop("annotations", None):
+            for anno in annotations:
+                if anno.pop("iscrowd", 0) == 0:
+                    anno.pop("bbox", None)
+                    anno.pop("bbox_mode", None)
+                    anno.pop("keypoints", None)
+                    anno = transform_instance_annotations(anno, transforms, image.shape[:2])
+                    annotations_transformed.append(anno)
+        else:
+            raise ValueError(
+                f"Cannot find 'annotations' for image {image_file_name}."
+            )
+        annotations = default_collate(annotations_transformed)
 
         # Pad image and segmentation label here!
-        image = torch.as_tensor(np.ascontiguousarray(image.transpose(2, 0, 1)))
-        masks = [torch.from_numpy(np.ascontiguousarray(x)) for x in masks]
-
-        classes = [int(obj["category_id"]) for obj in annos]
-        classes = torch.tensor(classes, dtype=torch.int64)
+        image = torch.from_numpy(image.transpose(2, 0, 1).copy())
+        classes = annotations.get("category_id", None)
+        masks = annotations.get("segmentation", None)
 
         if self.size_divisibility > 0:
-            image_size = (image.shape[-2], image.shape[-1])
+            _, height, width = image.size()
             padding_size = [
                 0,
-                self.size_divisibility - image_size[1],
+                self.size_divisibility - width,
                 0,
-                self.size_divisibility - image_size[0],
+                self.size_divisibility - height,
             ]
             # pad image
             image = F.pad(image, padding_size, value=128).contiguous()
             # pad mask
-            masks = [F.pad(x, padding_size, value=0).contiguous() for x in masks]
+            if masks is not None:
+                masks = F.pad(masks, padding_size, value=0).contiguous()
 
-        image_shape = (image.shape[-2], image.shape[-1])  # h, w
-
-        # Pytorch's dataloader is efficient on torch.Tensor due to shared-memory,
-        # but not efficient on large generic data structures due to the use of pickle & mp.Queue.
-        # Therefore it's important to use torch.Tensor.
         dataset_dict["image"] = image
 
         # Prepare per-category binary masks
-        instances = Instances(image_shape)
-        instances.gt_classes = classes
-        if len(masks) == 0:
+        _, *image_size = image.size()
+        if classes is None:
             # Some image does not have annotation (all ignored)
-            instances.gt_masks = torch.zeros((0, image.shape[-2], image.shape[-1]))
-        else:
-            masks = BitMasks(torch.stack(masks))
-            instances.gt_masks = masks.tensor
+            classes = torch.tensor(0, dtype=torch.int64)
+            masks = torch.zeros(0, *image_size, dtype=torch.bool)
 
+        instances = Instances(image_size, gt_classes=classes, gt_masks=masks)
         dataset_dict["instances"] = instances
 
         return dataset_dict

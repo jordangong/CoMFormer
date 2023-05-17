@@ -73,7 +73,7 @@ class PerPixelBaselineHead(nn.Module):
 
         self.pixel_decoder = pixel_decoder
         self.predictor = Conv2d(
-            self.pixel_decoder.mask_dim, num_classes, kernel_size=1, stride=1, padding=0
+            self.pixel_decoder.mask_dim, num_classes + 1, kernel_size=1, stride=1, padding=0
         )
         weight_init.c2_msra_fill(self.predictor)
 

@@ -77,7 +77,8 @@ def check_gradient_numerical(channels=4, grad_value=True, grad_sampling_loc=True
     attention_weights.requires_grad = grad_attn_weight
 
     gradok = gradcheck(func, (
-    value.double(), shapes, level_start_index, sampling_locations.double(), attention_weights.double(), im2col_step))
+        value.double(), shapes, level_start_index, sampling_locations.double(), attention_weights.double(),
+        im2col_step))
 
     print(f'* {gradok} check_gradient_numerical(D={channels})')
 
